@@ -117,4 +117,18 @@ where
     pub fn get_missing_deps(&self) -> Vec<ChangeHash> {
         self.backend.get_missing_deps()
     }
+
+    pub fn compact(&mut self) -> Result<(), PersistentBackendError<P::Error>> {
+        let changes = self.backend.get_changes(&[]);
+        let saved_backend = self.backend.save()?;
+        self.persister
+            .set_document(saved_backend)
+            .map_err(PersistentBackendError::PersisterError)?;
+        for change in changes {
+            self.persister
+                .remove_change(change.actor_id(), change.seq)
+                .map_err(PersistentBackendError::PersisterError)?
+        }
+        Ok(())
+    }
 }
