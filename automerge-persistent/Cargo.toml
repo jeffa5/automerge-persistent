@@ -1,0 +1,12 @@
+[package]
+name = "automerge-persistent"
+version = "0.1.0"
+authors = ["Andrew Jeffery <dev@jeffas.io>"]
+edition = "2018"
+
+[dependencies]
+automerge = { git = "https://github.com/jeffa5/automerge-rs", branch = "main" }
+automerge-protocol = { git = "https://github.com/jeffa5/automerge-rs", branch = "main" }
+automerge-frontend = { git = "https://github.com/jeffa5/automerge-rs", branch = "main" }
+automerge-backend = { git = "https://github.com/jeffa5/automerge-rs", branch = "main" }
+thiserror = "1.0.24"
