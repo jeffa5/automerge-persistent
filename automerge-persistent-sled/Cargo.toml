@@ -7,9 +7,5 @@ edition = "2018"
 [dependencies]
 automerge = { git = "https://github.com/jeffa5/automerge-rs", branch = "main" }
 automerge-protocol = { git = "https://github.com/jeffa5/automerge-rs", branch = "main" }
-automerge-frontend = { git = "https://github.com/jeffa5/automerge-rs", branch = "main" }
-automerge-backend = { git = "https://github.com/jeffa5/automerge-rs", branch = "main" }
 automerge-persistent = { path = "../automerge-persistent" }
 sled = "0.34.6"
-thiserror = "1.0.24"
-
