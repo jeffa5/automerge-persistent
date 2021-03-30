@@ -7,9 +7,7 @@ use automerge_protocol::{ActorId, ChangeHash, Patch, UncompressedChange};
 pub trait Persister {
     type Error: Error;
 
-    fn get_change(&self, actor_id: &ActorId, seq: u64) -> Result<Change, Self::Error>;
-
-    fn get_changes(&self) -> Result<Vec<Change>, Self::Error>;
+    fn get_changes(&self) -> Result<Vec<Vec<u8>>, Self::Error>;
 
     fn insert_change(
         &mut self,
@@ -20,7 +18,7 @@ pub trait Persister {
 
     fn remove_change(&mut self, actor_id: &ActorId, seq: u64) -> Result<(), Self::Error>;
 
-    fn get_document(&self) -> Result<Vec<u8>, Self::Error>;
+    fn get_document(&self) -> Result<Option<Vec<u8>>, Self::Error>;
 
     fn set_document(&mut self, data: Vec<u8>) -> Result<(), Self::Error>;
 }
@@ -56,10 +54,20 @@ where
         let document = persister
             .get_document()
             .map_err(PersistentBackendError::PersisterError)?;
-        let changes = persister
+        let mut backend = if let Some(document) = document {
+            automerge::Backend::load(document)?
+        } else {
+            automerge::Backend::init()
+        };
+
+        let change_bytes = persister
             .get_changes()
             .map_err(PersistentBackendError::PersisterError)?;
-        let mut backend = automerge::Backend::load(document)?;
+        let mut changes = Vec::new();
+        for change_bytes in change_bytes {
+            changes.push(Change::from_bytes(change_bytes)?)
+        }
+
         backend
             .apply_changes(changes)
             .map_err(PersistentBackendError::AutomergeError)?;
