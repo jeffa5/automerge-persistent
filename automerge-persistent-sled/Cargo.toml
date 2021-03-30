@@ -9,3 +9,10 @@ automerge = { git = "https://github.com/jeffa5/automerge-rs", branch = "main" }
 automerge-protocol = { git = "https://github.com/jeffa5/automerge-rs", branch = "main" }
 automerge-persistent = { path = "../automerge-persistent" }
 sled = "0.34.6"
+
+[dev-dependencies]
+criterion = "0.3.4"
+
+[[bench]]
+name = "save"
+harness = false
