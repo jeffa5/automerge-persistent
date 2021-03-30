@@ -1,4 +1,5 @@
 [workspace]
 members = [
   "automerge-persistent",
+  "automerge-persistent-sled",
 ]
