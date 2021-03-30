@@ -60,13 +60,6 @@ impl<P> PersistentBackend<P>
 where
     P: Persister,
 {
-    pub fn new(persister: P) -> Self {
-        Self {
-            backend: automerge::Backend::init(),
-            persister,
-        }
-    }
-
     /// Load the persisted changes (both individual changes and a document) from storage and
     /// rebuild the Backend.
     pub fn load(persister: P) -> Result<Self, PersistentBackendError<P::Error>> {
