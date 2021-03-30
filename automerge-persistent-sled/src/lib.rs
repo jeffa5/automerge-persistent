@@ -8,6 +8,15 @@ pub struct SledPersister {
     document_tree: sled::Tree,
 }
 
+impl SledPersister {
+    pub fn new(changes_tree: sled::Tree, document_tree: sled::Tree) -> Self {
+        Self {
+            changes_tree,
+            document_tree,
+        }
+    }
+}
+
 impl automerge_persistent::Persister for SledPersister {
     type Error = sled::Error;
 
