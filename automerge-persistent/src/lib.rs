@@ -88,10 +88,6 @@ where
             .map_err(PersistentBackendError::AutomergeError)
     }
 
-    pub fn get_heads(&self) -> Vec<ChangeHash> {
-        self.backend.get_heads()
-    }
-
     pub fn apply_local_change(
         &mut self,
         change: UncompressedChange,
@@ -101,6 +97,20 @@ where
             .insert_change(change.actor_id().clone(), change.seq, (*change).clone())
             .map_err(PersistentBackendError::PersisterError)?;
         Ok((patch, change))
+    }
+
+    pub fn compact(&mut self) -> Result<(), PersistentBackendError<P::Error>> {
+        let changes = self.backend.get_changes(&[]);
+        let saved_backend = self.backend.save()?;
+        self.persister
+            .set_document(saved_backend)
+            .map_err(PersistentBackendError::PersisterError)?;
+        for change in changes {
+            self.persister
+                .remove_change(change.actor_id(), change.seq)
+                .map_err(PersistentBackendError::PersisterError)?
+        }
+        Ok(())
     }
 
     pub fn get_patch(&self) -> Result<Patch, PersistentBackendError<P::Error>> {
@@ -126,17 +136,7 @@ where
         self.backend.get_missing_deps()
     }
 
-    pub fn compact(&mut self) -> Result<(), PersistentBackendError<P::Error>> {
-        let changes = self.backend.get_changes(&[]);
-        let saved_backend = self.backend.save()?;
-        self.persister
-            .set_document(saved_backend)
-            .map_err(PersistentBackendError::PersisterError)?;
-        for change in changes {
-            self.persister
-                .remove_change(change.actor_id(), change.seq)
-                .map_err(PersistentBackendError::PersisterError)?
-        }
-        Ok(())
+    pub fn get_heads(&self) -> Vec<ChangeHash> {
+        self.backend.get_heads()
     }
 }
