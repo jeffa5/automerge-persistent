@@ -82,6 +82,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "automerge-persistent-localstorage"
+version = "0.1.0"
+dependencies = [
+ "automerge",
+ "automerge-persistent",
+ "automerge-protocol",
+ "serde",
+ "serde_json",
+ "web-sys",
+]
+
+[[package]]
 name = "automerge-persistent-sled"
 version = "0.1.0"
 dependencies = [

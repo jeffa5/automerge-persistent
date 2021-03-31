@@ -30,20 +30,19 @@ impl automerge_persistent::Persister for SledPersister {
             .collect()
     }
 
-    fn insert_change(
-        &mut self,
-        actor_id: ActorId,
-        seq: u64,
-        change: Vec<u8>,
-    ) -> Result<(), Self::Error> {
-        let key = make_key(&actor_id, seq);
-        self.changes_tree.insert(key, change)?;
+    fn insert_changes(&mut self, changes: Vec<(ActorId, u64, Vec<u8>)>) -> Result<(), Self::Error> {
+        for (a, s, c) in changes {
+            let key = make_key(&a, s);
+            self.changes_tree.insert(key, c)?;
+        }
         Ok(())
     }
 
-    fn remove_change(&mut self, actor_id: &ActorId, seq: u64) -> Result<(), Self::Error> {
-        let key = make_key(actor_id, seq);
-        self.changes_tree.remove(key)?;
+    fn remove_changes(&mut self, changes: Vec<(&ActorId, u64)>) -> Result<(), Self::Error> {
+        for (a, s) in changes {
+            let key = make_key(a, s);
+            self.changes_tree.remove(key)?;
+        }
         Ok(())
     }
 

@@ -20,17 +20,12 @@ pub trait Persister {
     fn get_changes(&self) -> Result<Vec<Vec<u8>>, Self::Error>;
 
     /// Inserts the given change at the unique address specified by the actor_id and sequence_number.
-    fn insert_change(
-        &mut self,
-        actor_id: ActorId,
-        seq: u64,
-        change: Vec<u8>,
-    ) -> Result<(), Self::Error>;
+    fn insert_changes(&mut self, changes: Vec<(ActorId, u64, Vec<u8>)>) -> Result<(), Self::Error>;
 
     /// Removes the change at the unique address specified by the actor_id and sequence_number.
     ///
     /// If the change does not exist this should not return an error.
-    fn remove_change(&mut self, actor_id: &ActorId, seq: u64) -> Result<(), Self::Error>;
+    fn remove_changes(&mut self, changes: Vec<(&ActorId, u64)>) -> Result<(), Self::Error>;
 
     /// Returns the document, if one has been persisted previously.
     fn get_document(&self) -> Result<Option<Vec<u8>>, Self::Error>;
@@ -91,11 +86,14 @@ where
         &mut self,
         changes: Vec<Change>,
     ) -> Result<Patch, PersistentBackendError<P::Error>> {
-        for change in &changes {
-            self.persister
-                .insert_change(change.actor_id().clone(), change.seq, change.bytes.clone())
-                .map_err(PersistentBackendError::PersisterError)?;
-        }
+        self.persister
+            .insert_changes(
+                changes
+                    .iter()
+                    .map(|c| (c.actor_id().clone(), c.seq, c.bytes.clone()))
+                    .collect(),
+            )
+            .map_err(PersistentBackendError::PersisterError)?;
         self.backend
             .apply_changes(changes)
             .map_err(PersistentBackendError::AutomergeError)
@@ -108,11 +106,11 @@ where
     ) -> Result<(Patch, Rc<Change>), PersistentBackendError<P::Error>> {
         let (patch, change) = self.backend.apply_local_change(change)?;
         self.persister
-            .insert_change(
+            .insert_changes(vec![(
                 change.actor_id().clone(),
                 change.seq,
                 (*change).bytes.clone(),
-            )
+            )])
             .map_err(PersistentBackendError::PersisterError)?;
         Ok((patch, change))
     }
@@ -127,11 +125,9 @@ where
         self.persister
             .set_document(saved_backend)
             .map_err(PersistentBackendError::PersisterError)?;
-        for change in changes {
-            self.persister
-                .remove_change(change.actor_id(), change.seq)
-                .map_err(PersistentBackendError::PersisterError)?
-        }
+        self.persister
+            .remove_changes(changes.into_iter().map(|c| (c.actor_id(), c.seq)).collect())
+            .map_err(PersistentBackendError::PersisterError)?;
         Ok(())
     }
 
