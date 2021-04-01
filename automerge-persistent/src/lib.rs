@@ -46,6 +46,7 @@ where
 }
 
 /// A wrapper for a persister and an automerge Backend.
+#[derive(Debug)]
 pub struct PersistentBackend<P: Persister> {
     backend: automerge::Backend,
     persister: P,
