@@ -5,6 +5,7 @@ use automerge_protocol::ActorId;
 const DOCUMENT_KEY: &str = "automerge-persistent-localstorage-document";
 const CHANGES_KEY: &str = "automerge-persistent-localstorage-changes";
 
+#[derive(Debug)]
 pub struct LocalStoragePersister {
     storage: web_sys::Storage,
     changes: HashMap<String, Vec<u8>>,

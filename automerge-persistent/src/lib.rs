@@ -47,14 +47,14 @@ where
 
 /// A wrapper for a persister and an automerge Backend.
 #[derive(Debug)]
-pub struct PersistentBackend<P: Persister> {
+pub struct PersistentBackend<P: Persister + Debug> {
     backend: automerge::Backend,
     persister: P,
 }
 
 impl<P> PersistentBackend<P>
 where
-    P: Persister,
+    P: Persister + Debug,
 {
     /// Load the persisted changes (both individual changes and a document) from storage and
     /// rebuild the Backend.
@@ -180,7 +180,7 @@ pub trait MultiPersister {
     type DocumentId;
 
     /// The persister for a single backend.
-    type Persister: Persister;
+    type Persister: Persister + Debug;
 
     /// Returns a persistent backend.
     fn get(

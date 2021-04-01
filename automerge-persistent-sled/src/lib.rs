@@ -4,6 +4,7 @@ use automerge_protocol::ActorId;
 const DOCUMENT_KEY: &[u8] = b"document";
 
 /// The persister that stores changes and documents in sled trees.
+#[derive(Debug)]
 pub struct SledPersister {
     // TODO: should we just store a single tree and use a changes/ prefix
     changes_tree: sled::Tree,
