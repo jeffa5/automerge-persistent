@@ -1,4 +1,4 @@
-use std::{error::Error, fmt::Debug, rc::Rc};
+use std::{error::Error, fmt::Debug};
 
 use automerge::Change;
 use automerge_backend::AutomergeError;
@@ -103,13 +103,13 @@ where
     pub fn apply_local_change(
         &mut self,
         change: UncompressedChange,
-    ) -> Result<(Patch, Rc<Change>), PersistentBackendError<P::Error>> {
+    ) -> Result<(Patch, Change), PersistentBackendError<P::Error>> {
         let (patch, change) = self.backend.apply_local_change(change)?;
         self.persister
             .insert_changes(vec![(
                 change.actor_id().clone(),
                 change.seq,
-                (*change).bytes.clone(),
+                change.bytes.clone(),
             )])
             .map_err(PersistentBackendError::PersisterError)?;
         Ok((patch, change))
