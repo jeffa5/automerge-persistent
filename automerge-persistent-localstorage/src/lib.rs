@@ -16,7 +16,7 @@ impl LocalStoragePersister {
             &storage
                 .get_item(&changes_key)
                 .unwrap_or(None)
-                .unwrap_or_else(|| "[]".to_owned()),
+                .unwrap_or_else(|| "{}".to_owned()),
         )
         .unwrap();
         Self {
