@@ -53,11 +53,11 @@ impl automerge_persistent::Persister for LocalStoragePersister {
     }
 
     fn remove_changes(&mut self, changes: Vec<(&ActorId, u64)>) -> Result<(), Self::Error> {
-        log!("remove_changes", changes);
         let some_removal = changes
             .iter()
             .map(|(a, s)| {
                 let key = make_key(a, *s);
+                log!("removing", key);
                 self.changes.remove(&key).is_some()
             })
             .any(|x| x);
