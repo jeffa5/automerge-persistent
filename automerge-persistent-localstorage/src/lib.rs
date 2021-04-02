@@ -63,6 +63,7 @@ impl automerge_persistent::Persister for LocalStoragePersister {
             .any(|x| x);
         log!("some_removal", some_removal);
 
+        log!("changes", self.changes);
         if some_removal {
             self.storage
                 .set_item(
