@@ -168,23 +168,3 @@ where
         self.backend.get_heads()
     }
 }
-
-/// A MultiPersister stores multiple persistent backends, using an associated Persister.
-/// Each document has a unique ID by which it can be obtained.
-/// This mostly delegates to the returned PersistentBackend rather than reimplementing everything again.
-pub trait MultiPersister {
-    /// Potential error returned when getting a persistent backend
-    type Error;
-
-    /// The unique identifier for a document.
-    type DocumentId;
-
-    /// The persister for a single backend.
-    type Persister: Persister + Debug;
-
-    /// Returns a persistent backend.
-    fn get(
-        &self,
-        doc_id: &Self::DocumentId,
-    ) -> Result<&mut PersistentBackend<Self::Persister>, Self::Error>;
-}
