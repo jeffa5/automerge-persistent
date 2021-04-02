@@ -91,7 +91,7 @@ where
             .insert_changes(
                 changes
                     .iter()
-                    .map(|c| (c.actor_id().clone(), c.seq, c.bytes.clone()))
+                    .map(|c| (c.actor_id().clone(), c.seq, c.raw_bytes().to_vec()))
                     .collect(),
             )
             .map_err(PersistentBackendError::PersisterError)?;
@@ -110,7 +110,7 @@ where
             .insert_changes(vec![(
                 change.actor_id().clone(),
                 change.seq,
-                change.bytes.clone(),
+                change.raw_bytes().to_vec(),
             )])
             .map_err(PersistentBackendError::PersisterError)?;
         Ok((patch, change))
