@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use automerge_protocol::ActorId;
+use seed::*;
 
 #[derive(Debug)]
 pub struct LocalStoragePersister {
@@ -38,6 +39,7 @@ impl automerge_persistent::Persister for LocalStoragePersister {
     fn insert_changes(&mut self, changes: Vec<(ActorId, u64, Vec<u8>)>) -> Result<(), Self::Error> {
         for (a, s, c) in changes {
             let key = make_key(&a, s);
+            log!("insert_changes", a, s);
 
             self.changes.insert(key, c);
         }
@@ -51,6 +53,7 @@ impl automerge_persistent::Persister for LocalStoragePersister {
     }
 
     fn remove_changes(&mut self, changes: Vec<(&ActorId, u64)>) -> Result<(), Self::Error> {
+        log!("remove_changes", changes);
         let some_removal = changes
             .iter()
             .map(|(a, s)| {
@@ -58,6 +61,7 @@ impl automerge_persistent::Persister for LocalStoragePersister {
                 self.changes.remove(&key).is_some()
             })
             .any(|x| x);
+        log!("some_removal", some_removal);
 
         if some_removal {
             self.storage

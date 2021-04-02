@@ -11,3 +11,4 @@ automerge-persistent = { path = "../automerge-persistent" }
 web-sys = { version = "0.3.50", features = ["Storage"] }
 serde = "1.0.125"
 serde_json = "1.0.64"
+seed = "0.8.0"
