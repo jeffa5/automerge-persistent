@@ -53,20 +53,16 @@ impl automerge_persistent::Persister for LocalStoragePersister {
     }
 
     fn remove_changes(&mut self, changes: Vec<(&ActorId, u64)>) -> Result<(), Self::Error> {
-        let some_removal = changes
-            .iter()
-            .map(|(a, s)| {
-                let key = make_key(a, *s);
-                log!("removing", key);
-                self.changes.remove(&key).is_some()
-            })
-            .any(|x| x);
-        log!("some_removal", some_removal);
+        let mut some_removal = false;
+        for (a, s) in changes {
+            let key = make_key(a, s);
+            if self.changes.remove(&key).is_some() {
+                some_removal = true
+            }
+        }
 
-        log!("changes", self.changes);
         if some_removal {
             let s = serde_json::to_string(&self.changes).unwrap();
-            log!("s", s);
             self.storage.set_item(&self.changes_key, &s).unwrap();
         }
         Ok(())
