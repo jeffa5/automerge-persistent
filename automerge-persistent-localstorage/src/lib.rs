@@ -2,25 +2,29 @@ use std::collections::HashMap;
 
 use automerge_protocol::ActorId;
 
-const DOCUMENT_KEY: &str = "automerge-persistent-localstorage-document";
-const CHANGES_KEY: &str = "automerge-persistent-localstorage-changes";
-
 #[derive(Debug)]
 pub struct LocalStoragePersister {
     storage: web_sys::Storage,
     changes: HashMap<String, Vec<u8>>,
+    document_key: String,
+    changes_key: String,
 }
 
 impl LocalStoragePersister {
-    pub fn new(storage: web_sys::Storage) -> Self {
+    pub fn new(storage: web_sys::Storage, document_key: String, changes_key: String) -> Self {
         let changes = serde_json::from_str(
             &storage
-                .get_item(CHANGES_KEY)
+                .get_item(&changes_key)
                 .unwrap_or(None)
                 .unwrap_or_else(|| "[]".to_owned()),
         )
         .unwrap();
-        Self { storage, changes }
+        Self {
+            storage,
+            changes,
+            document_key,
+            changes_key,
+        }
     }
 }
 
@@ -38,7 +42,10 @@ impl automerge_persistent::Persister for LocalStoragePersister {
             self.changes.insert(key, c);
         }
         self.storage
-            .set_item(CHANGES_KEY, &serde_json::to_string(&self.changes).unwrap())
+            .set_item(
+                &self.changes_key,
+                &serde_json::to_string(&self.changes).unwrap(),
+            )
             .unwrap();
         Ok(())
     }
@@ -49,7 +56,10 @@ impl automerge_persistent::Persister for LocalStoragePersister {
             self.changes.remove(&key).unwrap();
         }
         self.storage
-            .set_item(CHANGES_KEY, &serde_json::to_string(&self.changes).unwrap())
+            .set_item(
+                &self.changes_key,
+                &serde_json::to_string(&self.changes).unwrap(),
+            )
             .unwrap();
         Ok(())
     }
@@ -57,7 +67,7 @@ impl automerge_persistent::Persister for LocalStoragePersister {
     fn get_document(&self) -> Result<Option<Vec<u8>>, Self::Error> {
         Ok(self
             .storage
-            .get_item(DOCUMENT_KEY)
+            .get_item(&self.document_key)
             .unwrap_or(None)
             .as_ref()
             .map(|c| serde_json::from_str(c).unwrap()))
@@ -65,7 +75,7 @@ impl automerge_persistent::Persister for LocalStoragePersister {
 
     fn set_document(&mut self, data: Vec<u8>) -> Result<(), Self::Error> {
         let data = serde_json::to_string(&data).unwrap();
-        self.storage.set_item(DOCUMENT_KEY, &data).unwrap();
+        self.storage.set_item(&self.document_key, &data).unwrap();
         Ok(())
     }
 }
