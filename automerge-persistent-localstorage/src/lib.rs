@@ -10,26 +10,37 @@ pub struct LocalStoragePersister {
     changes_key: String,
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum LocalStoragePersisterError {
+    #[error(transparent)]
+    SerdeError(#[from] serde_json::Error),
+    #[error("storage error {0:?}")]
+    StorageError(wasm_bindgen::JsValue),
+}
+
 impl LocalStoragePersister {
-    pub fn new(storage: web_sys::Storage, document_key: String, changes_key: String) -> Self {
+    pub fn new(
+        storage: web_sys::Storage,
+        document_key: String,
+        changes_key: String,
+    ) -> Result<Self, LocalStoragePersisterError> {
         let changes = serde_json::from_str(
             &storage
                 .get_item(&changes_key)
-                .unwrap_or(None)
+                .map_err(LocalStoragePersisterError::StorageError)?
                 .unwrap_or_else(|| "{}".to_owned()),
-        )
-        .unwrap();
-        Self {
+        )?;
+        Ok(Self {
             storage,
             changes,
             document_key,
             changes_key,
-        }
+        })
     }
 }
 
 impl automerge_persistent::Persister for LocalStoragePersister {
-    type Error = std::convert::Infallible;
+    type Error = LocalStoragePersisterError;
 
     fn get_changes(&self) -> Result<Vec<Vec<u8>>, Self::Error> {
         Ok(self.changes.values().cloned().collect())
@@ -42,11 +53,8 @@ impl automerge_persistent::Persister for LocalStoragePersister {
             self.changes.insert(key, c);
         }
         self.storage
-            .set_item(
-                &self.changes_key,
-                &serde_json::to_string(&self.changes).unwrap(),
-            )
-            .unwrap();
+            .set_item(&self.changes_key, &serde_json::to_string(&self.changes)?)
+            .map_err(LocalStoragePersisterError::StorageError)?;
         Ok(())
     }
 
@@ -60,24 +68,32 @@ impl automerge_persistent::Persister for LocalStoragePersister {
         }
 
         if some_removal {
-            let s = serde_json::to_string(&self.changes).unwrap();
-            self.storage.set_item(&self.changes_key, &s).unwrap();
+            let s = serde_json::to_string(&self.changes)?;
+            self.storage
+                .set_item(&self.changes_key, &s)
+                .map_err(LocalStoragePersisterError::StorageError)?;
         }
         Ok(())
     }
 
     fn get_document(&self) -> Result<Option<Vec<u8>>, Self::Error> {
-        Ok(self
+        if let Some(doc_string) = self
             .storage
             .get_item(&self.document_key)
-            .unwrap_or(None)
-            .as_ref()
-            .map(|c| serde_json::from_str(c).unwrap()))
+            .map_err(LocalStoragePersisterError::StorageError)?
+        {
+            let doc = serde_json::from_str(&doc_string)?;
+            Ok(Some(doc))
+        } else {
+            Ok(None)
+        }
     }
 
     fn set_document(&mut self, data: Vec<u8>) -> Result<(), Self::Error> {
-        let data = serde_json::to_string(&data).unwrap();
-        self.storage.set_item(&self.document_key, &data).unwrap();
+        let data = serde_json::to_string(&data)?;
+        self.storage
+            .set_item(&self.document_key, &data)
+            .map_err(LocalStoragePersisterError::StorageError)?;
         Ok(())
     }
 }

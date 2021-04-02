@@ -97,6 +97,8 @@ dependencies = [
  "automerge-protocol",
  "serde",
  "serde_json",
+ "thiserror",
+ "wasm-bindgen",
  "web-sys",
 ]
 
