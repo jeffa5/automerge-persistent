@@ -9,13 +9,15 @@ pub struct SledPersister {
     // TODO: should we just store a single tree and use a changes/ prefix
     changes_tree: sled::Tree,
     document_tree: sled::Tree,
+    prefix: String,
 }
 
 impl SledPersister {
-    pub fn new(changes_tree: sled::Tree, document_tree: sled::Tree) -> Self {
+    pub fn new(changes_tree: sled::Tree, document_tree: sled::Tree, prefix: String) -> Self {
         Self {
             changes_tree,
             document_tree,
+            prefix,
         }
     }
 }
@@ -33,7 +35,7 @@ impl automerge_persistent::Persister for SledPersister {
 
     fn insert_changes(&mut self, changes: Vec<(ActorId, u64, Vec<u8>)>) -> Result<(), Self::Error> {
         for (a, s, c) in changes {
-            let key = make_key(&a, s);
+            let key = self.make_key(&a, s);
             self.changes_tree.insert(key, c)?;
         }
         Ok(())
@@ -41,7 +43,7 @@ impl automerge_persistent::Persister for SledPersister {
 
     fn remove_changes(&mut self, changes: Vec<(&ActorId, u64)>) -> Result<(), Self::Error> {
         for (a, s) in changes {
-            let key = make_key(a, s);
+            let key = self.make_key(a, s);
             self.changes_tree.remove(key)?;
         }
         Ok(())
@@ -56,12 +58,14 @@ impl automerge_persistent::Persister for SledPersister {
         Ok(())
     }
 }
-
-/// Make a key from the actor_id and sequence_number.
-///
-/// Converts the actor_id to bytes and appends the sequence_number in big endian form.
-fn make_key(actor_id: &ActorId, seq: u64) -> Vec<u8> {
-    let mut key = actor_id.to_bytes();
-    key.extend(&seq.to_be_bytes());
-    key
+impl SledPersister {
+    /// Make a key from the actor_id and sequence_number.
+    ///
+    /// Converts the actor_id to bytes and appends the sequence_number in big endian form.
+    fn make_key(&self, actor_id: &ActorId, seq: u64) -> Vec<u8> {
+        let mut key = self.prefix.as_bytes().to_vec();
+        key.extend(&actor_id.to_bytes());
+        key.extend(&seq.to_be_bytes());
+        key
+    }
 }
