@@ -65,12 +65,9 @@ impl automerge_persistent::Persister for LocalStoragePersister {
 
         log!("changes", self.changes);
         if some_removal {
-            self.storage
-                .set_item(
-                    &self.changes_key,
-                    &serde_json::to_string(&self.changes).unwrap(),
-                )
-                .unwrap();
+            let s = serde_json::to_string(&self.changes).unwrap();
+            log!("s", s);
+            self.storage.set_item(&self.changes_key, &s).unwrap();
         }
         Ok(())
     }
