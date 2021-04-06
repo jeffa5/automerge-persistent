@@ -28,7 +28,7 @@ checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
 [[package]]
 name = "automerge"
 version = "0.0.2"
-source = "git+https://github.com/jeffa5/automerge-rs?branch=main#38214ca21eadd0694a463eb1e0b266e85ca93b73"
+source = "git+https://github.com/jeffa5/automerge-rs?branch=main#ae56f0d12f1ed599720219b6246c1659d839b486"
 dependencies = [
  "automerge-backend",
  "automerge-frontend",
@@ -41,7 +41,7 @@ dependencies = [
 [[package]]
 name = "automerge-backend"
 version = "0.0.1"
-source = "git+https://github.com/jeffa5/automerge-rs?branch=main#38214ca21eadd0694a463eb1e0b266e85ca93b73"
+source = "git+https://github.com/jeffa5/automerge-rs?branch=main#ae56f0d12f1ed599720219b6246c1659d839b486"
 dependencies = [
  "automerge-protocol",
  "flate2",
@@ -64,7 +64,7 @@ dependencies = [
 [[package]]
 name = "automerge-frontend"
 version = "0.1.0"
-source = "git+https://github.com/jeffa5/automerge-rs?branch=main#38214ca21eadd0694a463eb1e0b266e85ca93b73"
+source = "git+https://github.com/jeffa5/automerge-rs?branch=main#ae56f0d12f1ed599720219b6246c1659d839b486"
 dependencies = [
  "automerge-protocol",
  "futures",
@@ -116,7 +116,7 @@ dependencies = [
 [[package]]
 name = "automerge-protocol"
 version = "0.1.0"
-source = "git+https://github.com/jeffa5/automerge-rs?branch=main#38214ca21eadd0694a463eb1e0b266e85ca93b73"
+source = "git+https://github.com/jeffa5/automerge-rs?branch=main#ae56f0d12f1ed599720219b6246c1659d839b486"
 dependencies = [
  "hex",
  "serde",
@@ -596,15 +596,15 @@ checksum = "3576a87f2ba00f6f106fdfcd16db1d698d648a26ad8e0573cad8537c3c362d2a"
 
 [[package]]
 name = "libc"
-version = "0.2.92"
+version = "0.2.93"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "56d855069fafbb9b344c0f962150cd2c1187975cb1c22c1522c240d8c4986714"
+checksum = "9385f66bf6105b241aa65a61cb923ef20efc665cb9f9bb50ac2f0c4b7f378d41"
 
 [[package]]
 name = "lock_api"
-version = "0.4.2"
+version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd96ffd135b2fd7b973ac026d28085defbe8983df057ced3eb4f2130b0831312"
+checksum = "5a3c91c24eae6777794bb1997ad98bbb87daf92890acab859f7eaa4320333176"
 dependencies = [
  "scopeguard",
 ]
