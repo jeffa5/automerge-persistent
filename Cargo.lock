@@ -111,6 +111,7 @@ dependencies = [
  "automerge-protocol",
  "criterion",
  "sled",
+ "thiserror",
 ]
 
 [[package]]

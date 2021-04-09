@@ -11,6 +11,12 @@ pub struct SledPersister {
     prefix: String,
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum SledPersisterError {
+    #[error(transparent)]
+    SledError(#[from] sled::Error),
+}
+
 impl SledPersister {
     pub fn new(changes_tree: sled::Tree, document_tree: sled::Tree, prefix: String) -> Self {
         Self {
@@ -32,13 +38,13 @@ impl SledPersister {
 }
 
 impl automerge_persistent::Persister for SledPersister {
-    type Error = sled::Error;
+    type Error = SledPersisterError;
 
     fn get_changes(&self) -> Result<Vec<Vec<u8>>, Self::Error> {
         self.changes_tree
             .iter()
             .values()
-            .map(|v| v.map(|v| v.to_vec()))
+            .map(|v| v.map(|v| v.to_vec()).map_err(Self::Error::SledError))
             .collect()
     }
 
