@@ -35,6 +35,12 @@ impl SledPersister {
         key.extend(&seq.to_be_bytes());
         key
     }
+
+    fn make_document_key(&self) -> Vec<u8> {
+        let mut key = self.prefix.as_bytes().to_vec();
+        key.extend(DOCUMENT_KEY);
+        key
+    }
 }
 
 impl automerge_persistent::Persister for SledPersister {
@@ -65,11 +71,14 @@ impl automerge_persistent::Persister for SledPersister {
     }
 
     fn get_document(&self) -> Result<Option<Vec<u8>>, Self::Error> {
-        Ok(self.document_tree.get(DOCUMENT_KEY)?.map(|v| v.to_vec()))
+        Ok(self
+            .document_tree
+            .get(self.make_document_key())?
+            .map(|v| v.to_vec()))
     }
 
     fn set_document(&mut self, data: Vec<u8>) -> Result<(), Self::Error> {
-        self.document_tree.insert(DOCUMENT_KEY, data)?;
+        self.document_tree.insert(self.make_document_key(), data)?;
         Ok(())
     }
 }
