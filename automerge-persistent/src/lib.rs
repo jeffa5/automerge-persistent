@@ -1,8 +1,11 @@
+mod mem;
+
 use std::{error::Error, fmt::Debug};
 
 use automerge::Change;
 use automerge_backend::AutomergeError;
 use automerge_protocol::{ActorId, ChangeHash, Patch, UncompressedChange};
+pub use mem::MemoryPersister;
 
 /// A Persister persists both changes and documents to durable storage. This means that on a power
 /// loss changes should still be around for loading after. It is up to the implementation to decide
