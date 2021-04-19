@@ -1,3 +1,25 @@
+#![warn(missing_docs)]
+#![warn(missing_crate_level_docs)]
+#![warn(missing_doc_code_examples)]
+
+//! A library for constructing efficient persistent automerge documents.
+//!
+//! A [`PersistentBackend`] wraps an [`automerge::Backend`] and handles making the changes applied
+//! to it durable. This works by persisting every change before it is applied to the backend. Then
+//! occasionally the user should call `compact` to save the backend in a more compact format and
+//! cleanup the included changes. This strategy aims to be fast while also being space efficient
+//! (up to the user's requirements).
+//!
+//! ```rust
+//! # use automerge_persistent::MemoryPersister;
+//! # use automerge_persistent::PersistentBackend;
+//! # fn main() -> Result<(), automerge_persistent::PersistentBackendError<std::convert::Infallible>> {
+//! let persister = MemoryPersister::default();
+//! let backend = PersistentBackend::load(persister)?;
+//! # Ok(())
+//! # }
+//! ```
+
 mod mem;
 
 use std::{error::Error, fmt::Debug};
@@ -7,11 +29,13 @@ use automerge_backend::AutomergeError;
 use automerge_protocol::{ActorId, ChangeHash, Patch, UncompressedChange};
 pub use mem::MemoryPersister;
 
-/// A Persister persists both changes and documents to durable storage. This means that on a power
-/// loss changes should still be around for loading after. It is up to the implementation to decide
-/// on trade-offs regarding how often to fsync for example.
+/// A Persister persists both changes and documents to durable storage.
 ///
-/// Changes are identified by a pair of actor_id and sequence_number. This uniquely identifies a change and so is suitable for use as a key in the implementation.
+/// In the event of a power loss changes should still be around for loading after. It is up to the
+/// implementation to decide on trade-offs regarding how often to fsync for example.
+///
+/// Changes are identified by a pair of actor_id and sequence_number. This uniquely identifies a
+/// change and so is suitable for use as a key in the implementation.
 ///
 /// Documents are saved automerge Backends so are more compact than the raw changes they represent.
 pub trait Persister {
@@ -37,13 +61,16 @@ pub trait Persister {
     fn set_document(&mut self, data: Vec<u8>) -> Result<(), Self::Error>;
 }
 
+/// Errors that persistent backends can return.
 #[derive(Debug, thiserror::Error)]
 pub enum PersistentBackendError<E>
 where
     E: Debug + Error + 'static,
 {
+    /// An internal automerge error.
     #[error(transparent)]
     AutomergeError(#[from] AutomergeError),
+    /// A persister error.
     #[error(transparent)]
     PersisterError(E),
 }
@@ -142,7 +169,7 @@ where
             .map_err(PersistentBackendError::AutomergeError)
     }
 
-    // Get the changes performed by the given actor_id.
+    /// Get the changes performed by the given actor_id.
     pub fn get_changes_for_actor_id(
         &self,
         actor_id: &ActorId,

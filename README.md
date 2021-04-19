@@ -10,9 +10,11 @@ repo would be very much appreciated.
 
 Good backends to have would be:
 
-- filesystem
-- localstorage or indexeddb in browser
-- memory (for some testing I guess)
+- [x] memory (for some testing scenarios)
+- [x] sled
+- [x] localstorage
+- [ ] indexeddb
+- [ ] filesystem
 - other suggestions welcome!
 
 ## Usage

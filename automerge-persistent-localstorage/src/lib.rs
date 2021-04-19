@@ -1,7 +1,36 @@
+#![warn(missing_docs)]
+#![warn(missing_crate_level_docs)]
+#![warn(missing_doc_code_examples)]
+
+//! A persister targetting LocalStorage in the browser.
+//!
+//! ```rust,no_run
+//! # use automerge_persistent_localstorage::{LocalStoragePersister, LocalStoragePersisterError};
+//! # use automerge_persistent::PersistentBackend;
+//! # fn main() -> Result<(), LocalStoragePersisterError> {
+//! let storage = web_sys::window()
+//!     .unwrap()
+//!     .local_storage()
+//!     .map_err(LocalStoragePersisterError::StorageError)?
+//!     .unwrap();
+//!
+//! let persister =
+//!     LocalStoragePersister::new(storage, "document".to_owned(), "changes".to_owned())?;
+//! let backend = PersistentBackend::load(persister);
+//! # Ok(())
+//! # }
+//! ```
+
 use std::collections::HashMap;
 
 use automerge_protocol::ActorId;
 
+/// Persist changes and documents in to LocalStorage.
+///
+/// While aimed at LocalStorage, it accepts any storage that  conforms to the [`web_sys::Storage`]
+/// API.
+///
+/// Since LocalStorage is limited we store changes in a JSON map in one key.
 #[derive(Debug)]
 pub struct LocalStoragePersister {
     storage: web_sys::Storage,
@@ -10,15 +39,19 @@ pub struct LocalStoragePersister {
     changes_key: String,
 }
 
+/// Possible errors from persisting.
 #[derive(Debug, thiserror::Error)]
 pub enum LocalStoragePersisterError {
+    /// Serde failure, converting the change/document into JSON.
     #[error(transparent)]
     SerdeError(#[from] serde_json::Error),
+    /// An underlying storage error.
     #[error("storage error {0:?}")]
     StorageError(wasm_bindgen::JsValue),
 }
 
 impl LocalStoragePersister {
+    /// Construct a new LocalStoragePersister.
     pub fn new(
         storage: web_sys::Storage,
         document_key: String,
