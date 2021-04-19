@@ -57,12 +57,14 @@ impl LocalStoragePersister {
         document_key: String,
         changes_key: String,
     ) -> Result<Self, LocalStoragePersisterError> {
-        let changes = serde_json::from_str(
-            &storage
-                .get_item(&changes_key)
-                .map_err(LocalStoragePersisterError::StorageError)?
-                .unwrap_or_else(|| "{}".to_owned()),
-        )?;
+        let changes = if let Some(stored) = storage
+            .get_item(&changes_key)
+            .map_err(LocalStoragePersisterError::StorageError)?
+        {
+            serde_json::from_str(&stored)?
+        } else {
+            HashMap::new()
+        };
         Ok(Self {
             storage,
             changes,
