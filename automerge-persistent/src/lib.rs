@@ -226,7 +226,8 @@ where
     /// Peer id is intentionally low level and up to the user as it can be a DNS name, IP address or
     /// something else.
     ///
-    /// This internally retrieves the previous sync state from storage and saves the new one after.
+    /// This internally retrieves the previous sync state from storage and saves the new one
+    /// afterwards.
     pub fn generate_sync_message(
         &mut self,
         peer_id: Vec<u8>,
@@ -255,7 +256,8 @@ where
     /// Peer id is intentionally low level and up to the user as it can be a DNS name, IP address or
     /// something else.
     ///
-    /// This internally retrieves the previous sync state from storage and saves the new one after.
+    /// This internally retrieves the previous sync state from storage and saves the new one
+    /// afterwards.
     pub fn receive_sync_message(
         &mut self,
         peer_id: Vec<u8>,
