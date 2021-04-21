@@ -149,7 +149,7 @@ where
     pub fn apply_local_change(
         &mut self,
         change: UncompressedChange,
-    ) -> Result<(Patch, Change), PersistentBackendError<P::Error>> {
+    ) -> Result<Patch, PersistentBackendError<P::Error>> {
         let (patch, change) = self.backend.apply_local_change(change)?;
         self.persister
             .insert_changes(vec![(
@@ -158,7 +158,7 @@ where
                 change.raw_bytes().to_vec(),
             )])
             .map_err(PersistentBackendError::PersisterError)?;
-        Ok((patch, change))
+        Ok(patch)
     }
 
     /// Compact the storage.
