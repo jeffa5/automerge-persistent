@@ -127,7 +127,7 @@ impl automerge_persistent::Persister for SledPersister {
     /// Get all of the current changes.
     fn get_changes(&self) -> Result<Vec<Vec<u8>>, Self::Error> {
         self.changes_tree
-            .iter()
+            .scan_prefix(&self.prefix)
             .values()
             .map(|v| v.map(|v| v.to_vec()).map_err(Self::Error::SledError))
             .collect()
