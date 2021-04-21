@@ -14,8 +14,7 @@
 //!     .map_err(LocalStoragePersisterError::StorageError)?
 //!     .unwrap();
 //!
-//! let persister =
-//!     LocalStoragePersister::new(storage, "document".to_owned(), "changes".to_owned())?;
+//! let persister = LocalStoragePersister::new(storage, "document".to_owned(), "changes".to_owned(), "sync-states".to_owned())?;
 //! let backend = PersistentBackend::load(persister);
 //! # Ok(())
 //! # }
@@ -35,8 +34,10 @@ use automerge_protocol::ActorId;
 pub struct LocalStoragePersister {
     storage: web_sys::Storage,
     changes: HashMap<String, Vec<u8>>,
+    sync_states: HashMap<Vec<u8>, Vec<u8>>,
     document_key: String,
     changes_key: String,
+    sync_states_key: String,
 }
 
 /// Possible errors from persisting.
@@ -56,6 +57,7 @@ impl LocalStoragePersister {
         storage: web_sys::Storage,
         document_key: String,
         changes_key: String,
+        sync_states_key: String,
     ) -> Result<Self, LocalStoragePersisterError> {
         let changes = if let Some(stored) = storage
             .get_item(&changes_key)
@@ -65,11 +67,21 @@ impl LocalStoragePersister {
         } else {
             HashMap::new()
         };
+        let sync_states = if let Some(stored) = storage
+            .get_item(&sync_states_key)
+            .map_err(LocalStoragePersisterError::StorageError)?
+        {
+            serde_json::from_str(&stored)?
+        } else {
+            HashMap::new()
+        };
         Ok(Self {
             storage,
             changes,
+            sync_states,
             document_key,
             changes_key,
+            sync_states_key,
         })
     }
 }
@@ -128,6 +140,34 @@ impl automerge_persistent::Persister for LocalStoragePersister {
         let data = serde_json::to_string(&data)?;
         self.storage
             .set_item(&self.document_key, &data)
+            .map_err(LocalStoragePersisterError::StorageError)?;
+        Ok(())
+    }
+
+    fn get_sync_state(&mut self, peer_id: &[u8]) -> Result<Option<Vec<u8>>, Self::Error> {
+        Ok(self.sync_states.get(peer_id).cloned())
+    }
+
+    fn set_sync_state(&mut self, peer_id: Vec<u8>, sync_state: Vec<u8>) -> Result<(), Self::Error> {
+        self.sync_states.insert(peer_id, sync_state);
+        self.storage
+            .set_item(
+                &self.sync_states_key,
+                &serde_json::to_string(&self.sync_states)?,
+            )
+            .map_err(LocalStoragePersisterError::StorageError)?;
+        Ok(())
+    }
+
+    fn remove_sync_states(&mut self, peer_ids: Vec<Vec<u8>>) -> Result<(), Self::Error> {
+        for id in &peer_ids {
+            self.sync_states.remove(id);
+        }
+        self.storage
+            .set_item(
+                &self.sync_states_key,
+                &serde_json::to_string(&self.sync_states)?,
+            )
             .map_err(LocalStoragePersisterError::StorageError)?;
         Ok(())
     }

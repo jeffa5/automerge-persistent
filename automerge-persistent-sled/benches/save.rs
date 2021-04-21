@@ -9,6 +9,7 @@ fn small_backend_apply_local_change(c: &mut Criterion) {
                 let sled = automerge_persistent_sled::SledPersister::new(
                     db.open_tree("changes").unwrap(),
                     db.open_tree("document").unwrap(),
+                    db.open_tree("sync_states").unwrap(),
                     "".to_owned(),
                 );
                 let backend = automerge_persistent::PersistentBackend::load(sled).unwrap();
@@ -40,6 +41,7 @@ fn small_backend_apply_local_change_flush(c: &mut Criterion) {
                 let sled = automerge_persistent_sled::SledPersister::new(
                     db.open_tree("changes").unwrap(),
                     db.open_tree("document").unwrap(),
+                    db.open_tree("sync_states").unwrap(),
                     "".to_owned(),
                 );
                 let backend = automerge_persistent::PersistentBackend::load(sled).unwrap();
@@ -74,6 +76,7 @@ fn small_backend_apply_changes(c: &mut Criterion) {
                 let sled = automerge_persistent_sled::SledPersister::new(
                     db.open_tree("changes").unwrap(),
                     db.open_tree("document").unwrap(),
+                    db.open_tree("sync_states").unwrap(),
                     "".to_owned(),
                 );
                 let mut other_backend = automerge::Backend::init();
@@ -111,6 +114,7 @@ fn small_backend_compact(c: &mut Criterion) {
                 let sled = automerge_persistent_sled::SledPersister::new(
                     db.open_tree("changes").unwrap(),
                     db.open_tree("document").unwrap(),
+                    db.open_tree("sync_states").unwrap(),
                     "".to_owned(),
                 );
                 let mut backend = automerge_persistent::PersistentBackend::load(sled).unwrap();

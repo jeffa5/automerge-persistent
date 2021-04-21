@@ -25,7 +25,7 @@ mod mem;
 use std::{error::Error, fmt::Debug};
 
 use automerge::Change;
-use automerge_backend::AutomergeError;
+use automerge_backend::{AutomergeError, SyncMessage, SyncState};
 use automerge_protocol::{ActorId, ChangeHash, Patch, UncompressedChange};
 pub use mem::MemoryPersister;
 
@@ -59,6 +59,21 @@ pub trait Persister {
 
     /// Sets the document to the given data.
     fn set_document(&mut self, data: Vec<u8>) -> Result<(), Self::Error>;
+
+    /// Returns the sync state for the given peer if one exists.
+    ///
+    /// A peer id corresponds to an instance of a backend and may be serving multiple frontends so
+    /// we cannot have it work on ActorIds.
+    fn get_sync_state(&mut self, peer_id: &[u8]) -> Result<Option<Vec<u8>>, Self::Error>;
+
+    /// Sets the sync state for the given peer.
+    ///
+    /// A peer id corresponds to an instance of a backend and may be serving multiple frontends so
+    /// we cannot have it work on ActorIds.
+    fn set_sync_state(&mut self, peer_id: Vec<u8>, sync_state: Vec<u8>) -> Result<(), Self::Error>;
+
+    /// Removes the sync states associated with the given peer_ids.
+    fn remove_sync_states(&mut self, peer_ids: Vec<Vec<u8>>) -> Result<(), Self::Error>;
 }
 
 /// Errors that persistent backends can return.
@@ -150,7 +165,13 @@ where
     ///
     /// This first obtains the changes currently in the backend, saves the backend and persists the
     /// saved document. We then can remove the previously obtained changes one by one.
-    pub fn compact(&mut self) -> Result<(), PersistentBackendError<P::Error>> {
+    ///
+    /// It also clears out the storage used up by old sync states for peers by removing those given
+    /// in old_peers.
+    pub fn compact(
+        &mut self,
+        old_peer_ids: Vec<Vec<u8>>,
+    ) -> Result<(), PersistentBackendError<P::Error>> {
         let changes = self.backend.get_changes(&[]);
         let saved_backend = self.backend.save()?;
         self.persister
@@ -158,6 +179,9 @@ where
             .map_err(PersistentBackendError::PersisterError)?;
         self.persister
             .remove_changes(changes.into_iter().map(|c| (c.actor_id(), c.seq)).collect())
+            .map_err(PersistentBackendError::PersisterError)?;
+        self.persister
+            .remove_sync_states(old_peer_ids)
             .map_err(PersistentBackendError::PersisterError)?;
         Ok(())
     }
@@ -189,12 +213,73 @@ where
     ///
     /// This may not give all hashes required as multiple changes in a sequence could be missing.
     pub fn get_missing_deps(&self) -> Vec<ChangeHash> {
-        self.backend.get_missing_deps()
+        self.backend.get_missing_deps(&[])
     }
 
     /// Get the current heads of the hash graph (changes without successors).
-
     pub fn get_heads(&self) -> Vec<ChangeHash> {
         self.backend.get_heads()
+    }
+
+    /// Generate a sync message to be sent to a peer backend.
+    ///
+    /// Peer id is intentionally low level and up to the user as it can be a DNS name, IP address or
+    /// something else.
+    ///
+    /// This internally retrieves the previous sync state from storage and saves the new one after.
+    pub fn generate_sync_message(
+        &mut self,
+        peer_id: Vec<u8>,
+    ) -> Result<Option<SyncMessage>, PersistentBackendError<P::Error>> {
+        let sync_state = SyncState::decode(
+            &self
+                .persister
+                .get_sync_state(&peer_id)
+                .map_err(PersistentBackendError::PersisterError)?
+                .unwrap_or_default(),
+        )?;
+        let (new_sync_state, message) = self.backend.generate_sync_message(sync_state);
+        self.persister
+            .set_sync_state(
+                peer_id,
+                new_sync_state
+                    .encode()
+                    .map_err(PersistentBackendError::AutomergeError)?,
+            )
+            .map_err(PersistentBackendError::PersisterError)?;
+        Ok(message)
+    }
+
+    /// Receive a sync message from a peer backend.
+    ///
+    /// Peer id is intentionally low level and up to the user as it can be a DNS name, IP address or
+    /// something else.
+    ///
+    /// This internally retrieves the previous sync state from storage and saves the new one after.
+    pub fn receive_sync_message(
+        &mut self,
+        peer_id: Vec<u8>,
+        message: SyncMessage,
+    ) -> Result<Option<Patch>, PersistentBackendError<P::Error>> {
+        let sync_state = SyncState::decode(
+            &self
+                .persister
+                .get_sync_state(&peer_id)
+                .map_err(PersistentBackendError::PersisterError)?
+                .unwrap_or_default(),
+        )?;
+        let (new_sync_state, patch) = self
+            .backend
+            .receive_sync_message(sync_state, message)
+            .map_err(PersistentBackendError::AutomergeError)?;
+        self.persister
+            .set_sync_state(
+                peer_id,
+                new_sync_state
+                    .encode()
+                    .map_err(PersistentBackendError::AutomergeError)?,
+            )
+            .map_err(PersistentBackendError::PersisterError)?;
+        Ok(patch)
     }
 }
