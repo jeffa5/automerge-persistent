@@ -144,7 +144,7 @@ impl automerge_persistent::Persister for LocalStoragePersister {
         Ok(())
     }
 
-    fn get_sync_state(&mut self, peer_id: &[u8]) -> Result<Option<Vec<u8>>, Self::Error> {
+    fn get_sync_state(&self, peer_id: &[u8]) -> Result<Option<Vec<u8>>, Self::Error> {
         Ok(self.sync_states.get(peer_id).cloned())
     }
 
@@ -170,6 +170,10 @@ impl automerge_persistent::Persister for LocalStoragePersister {
             )
             .map_err(LocalStoragePersisterError::StorageError)?;
         Ok(())
+    }
+
+    fn get_peer_ids(&self) -> Result<Vec<Vec<u8>>, Self::Error> {
+        Ok(self.sync_states.keys().cloned().collect())
     }
 }
 

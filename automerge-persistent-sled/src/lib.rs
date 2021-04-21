@@ -165,7 +165,7 @@ impl automerge_persistent::Persister for SledPersister {
         Ok(())
     }
 
-    fn get_sync_state(&mut self, peer_id: &[u8]) -> Result<Option<Vec<u8>>, Self::Error> {
+    fn get_sync_state(&self, peer_id: &[u8]) -> Result<Option<Vec<u8>>, Self::Error> {
         let sync_state_key = self.make_peer_key(peer_id);
         Ok(self
             .sync_states_tree
@@ -185,5 +185,13 @@ impl automerge_persistent::Persister for SledPersister {
             self.sync_states_tree.remove(key)?;
         }
         Ok(())
+    }
+
+    fn get_peer_ids(&self) -> Result<Vec<Vec<u8>>, Self::Error> {
+        self.sync_states_tree
+            .scan_prefix(&self.prefix)
+            .keys()
+            .map(|v| v.map(|v| v.to_vec()).map_err(Self::Error::SledError))
+            .collect()
     }
 }

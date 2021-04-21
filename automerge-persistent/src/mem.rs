@@ -50,7 +50,7 @@ impl Persister for MemoryPersister {
         Ok(())
     }
 
-    fn get_sync_state(&mut self, peer_id: &[u8]) -> Result<Option<Vec<u8>>, Self::Error> {
+    fn get_sync_state(&self, peer_id: &[u8]) -> Result<Option<Vec<u8>>, Self::Error> {
         Ok(self.sync_states.get(peer_id).cloned())
     }
 
@@ -64,5 +64,9 @@ impl Persister for MemoryPersister {
             self.sync_states.remove(*id);
         }
         Ok(())
+    }
+
+    fn get_peer_ids(&self) -> Result<Vec<Vec<u8>>, Self::Error> {
+        Ok(self.sync_states.keys().cloned().collect())
     }
 }

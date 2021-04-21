@@ -64,7 +64,7 @@ pub trait Persister {
     ///
     /// A peer id corresponds to an instance of a backend and may be serving multiple frontends so
     /// we cannot have it work on ActorIds.
-    fn get_sync_state(&mut self, peer_id: &[u8]) -> Result<Option<Vec<u8>>, Self::Error>;
+    fn get_sync_state(&self, peer_id: &[u8]) -> Result<Option<Vec<u8>>, Self::Error>;
 
     /// Sets the sync state for the given peer.
     ///
@@ -74,6 +74,12 @@ pub trait Persister {
 
     /// Removes the sync states associated with the given peer_ids.
     fn remove_sync_states(&mut self, peer_ids: &[&[u8]]) -> Result<(), Self::Error>;
+
+    /// Returns the list of peer ids with stored SyncStates.
+    ///
+    /// This is intended for use by users to see what peer_ids are taking space so that they can be
+    /// removed during a compaction.
+    fn get_peer_ids(&self) -> Result<Vec<Vec<u8>>, Self::Error>;
 }
 
 /// Errors that persistent backends can return.
