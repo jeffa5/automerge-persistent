@@ -129,10 +129,10 @@ fn small_backend_compact(c: &mut Criterion) {
                         Ok(())
                     })
                     .unwrap();
-                let (_patch, _change) = backend.apply_local_change(change.unwrap()).unwrap();
+                let _patch = backend.apply_local_change(change.unwrap()).unwrap();
                 backend
             },
-            |mut persistent_doc| persistent_doc.compact(),
+            |mut persistent_doc| persistent_doc.compact(&[]),
             criterion::BatchSize::SmallInput,
         )
     });

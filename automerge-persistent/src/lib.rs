@@ -73,7 +73,7 @@ pub trait Persister {
     fn set_sync_state(&mut self, peer_id: Vec<u8>, sync_state: Vec<u8>) -> Result<(), Self::Error>;
 
     /// Removes the sync states associated with the given peer_ids.
-    fn remove_sync_states(&mut self, peer_ids: Vec<Vec<u8>>) -> Result<(), Self::Error>;
+    fn remove_sync_states(&mut self, peer_ids: &[&[u8]]) -> Result<(), Self::Error>;
 }
 
 /// Errors that persistent backends can return.
@@ -170,7 +170,7 @@ where
     /// in old_peers.
     pub fn compact(
         &mut self,
-        old_peer_ids: Vec<Vec<u8>>,
+        old_peer_ids: &[&[u8]],
     ) -> Result<(), PersistentBackendError<P::Error>> {
         let changes = self.backend.get_changes(&[]);
         let saved_backend = self.backend.save()?;

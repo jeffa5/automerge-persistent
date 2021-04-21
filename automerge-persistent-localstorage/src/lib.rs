@@ -159,9 +159,9 @@ impl automerge_persistent::Persister for LocalStoragePersister {
         Ok(())
     }
 
-    fn remove_sync_states(&mut self, peer_ids: Vec<Vec<u8>>) -> Result<(), Self::Error> {
-        for id in &peer_ids {
-            self.sync_states.remove(id);
+    fn remove_sync_states(&mut self, peer_ids: &[&[u8]]) -> Result<(), Self::Error> {
+        for id in peer_ids {
+            self.sync_states.remove(*id);
         }
         self.storage
             .set_item(
