@@ -212,8 +212,8 @@ where
     /// pending changes.
     ///
     /// This may not give all hashes required as multiple changes in a sequence could be missing.
-    pub fn get_missing_deps(&self) -> Vec<ChangeHash> {
-        self.backend.get_missing_deps(&[])
+    pub fn get_missing_deps(&self, heads: &[ChangeHash]) -> Vec<ChangeHash> {
+        self.backend.get_missing_deps(heads)
     }
 
     /// Get the current heads of the hash graph (changes without successors).
