@@ -22,7 +22,7 @@
 
 mod mem;
 
-use std::{error::Error, fmt::Debug};
+use std::{collections::HashMap, error::Error, fmt::Debug};
 
 use automerge::Change;
 use automerge_backend::{AutomergeError, SyncMessage, SyncState};
@@ -96,10 +96,13 @@ where
     PersisterError(E),
 }
 
+type PeerId = Vec<u8>;
+
 /// A wrapper for a persister and an automerge Backend.
 #[derive(Debug)]
 pub struct PersistentBackend<P: Persister + Debug> {
     backend: automerge::Backend,
+    sync_states: HashMap<PeerId, SyncState>,
     persister: P,
 }
 
@@ -137,7 +140,11 @@ where
         backend
             .apply_changes(changes)
             .map_err(PersistentBackendError::AutomergeError)?;
-        Ok(Self { backend, persister })
+        Ok(Self {
+            backend,
+            sync_states: HashMap::new(),
+            persister,
+        })
     }
 
     /// Apply a sequence of changes, typically from a remote backend.
@@ -299,22 +306,27 @@ where
     /// ```
     pub fn generate_sync_message(
         &mut self,
-        peer_id: Vec<u8>,
+        peer_id: PeerId,
     ) -> Result<Option<SyncMessage>, PersistentBackendError<P::Error>> {
-        let sync_state = if let Some(sync_state) = self
-            .persister
-            .get_sync_state(&peer_id)
-            .map_err(PersistentBackendError::PersisterError)?
-        {
-            SyncState::decode(&sync_state)?
-        } else {
-            SyncState::default()
-        };
-        let (new_sync_state, message) = self.backend.generate_sync_message(sync_state);
+        if !self.sync_states.contains_key(&peer_id) {
+            let s = if let Some(sync_state) = self
+                .persister
+                .get_sync_state(&peer_id)
+                .map_err(PersistentBackendError::PersisterError)?
+            {
+                SyncState::decode(&sync_state)?
+            } else {
+                SyncState::default()
+            };
+            self.sync_states.insert(peer_id.clone(), s);
+        }
+        let sync_state = self.sync_states.get_mut(&peer_id).unwrap();
+        let message = self.backend.generate_sync_message(sync_state);
         self.persister
             .set_sync_state(
                 peer_id,
-                new_sync_state
+                sync_state
+                    .clone()
                     .encode()
                     .map_err(PersistentBackendError::AutomergeError)?,
             )
@@ -331,26 +343,31 @@ where
     /// afterwards.
     pub fn receive_sync_message(
         &mut self,
-        peer_id: Vec<u8>,
+        peer_id: PeerId,
         message: SyncMessage,
     ) -> Result<Option<Patch>, PersistentBackendError<P::Error>> {
-        let sync_state = if let Some(sync_state) = self
-            .persister
-            .get_sync_state(&peer_id)
-            .map_err(PersistentBackendError::PersisterError)?
-        {
-            SyncState::decode(&sync_state)?
-        } else {
-            SyncState::default()
-        };
-        let (new_sync_state, patch) = self
+        if !self.sync_states.contains_key(&peer_id) {
+            let s = if let Some(sync_state) = self
+                .persister
+                .get_sync_state(&peer_id)
+                .map_err(PersistentBackendError::PersisterError)?
+            {
+                SyncState::decode(&sync_state)?
+            } else {
+                SyncState::default()
+            };
+            self.sync_states.insert(peer_id.clone(), s);
+        }
+        let sync_state = self.sync_states.get_mut(&peer_id).unwrap();
+        let patch = self
             .backend
             .receive_sync_message(sync_state, message)
             .map_err(PersistentBackendError::AutomergeError)?;
         self.persister
             .set_sync_state(
                 peer_id,
-                new_sync_state
+                sync_state
+                    .clone()
                     .encode()
                     .map_err(PersistentBackendError::AutomergeError)?,
             )
