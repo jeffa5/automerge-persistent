@@ -309,18 +309,16 @@ where
         peer_id: PeerId,
     ) -> Result<Option<SyncMessage>, PersistentBackendError<P::Error>> {
         if !self.sync_states.contains_key(&peer_id) {
-            let s = if let Some(sync_state) = self
+            if let Some(sync_state) = self
                 .persister
                 .get_sync_state(&peer_id)
                 .map_err(PersistentBackendError::PersisterError)?
             {
-                SyncState::decode(&sync_state)?
-            } else {
-                SyncState::default()
-            };
-            self.sync_states.insert(peer_id.clone(), s);
+                let s = SyncState::decode(&sync_state)?;
+                self.sync_states.insert(peer_id.clone(), s);
+            }
         }
-        let sync_state = self.sync_states.get_mut(&peer_id).unwrap();
+        let sync_state = self.sync_states.entry(peer_id.clone()).or_default();
         let message = self.backend.generate_sync_message(sync_state);
         self.persister
             .set_sync_state(
@@ -347,18 +345,16 @@ where
         message: SyncMessage,
     ) -> Result<Option<Patch>, PersistentBackendError<P::Error>> {
         if !self.sync_states.contains_key(&peer_id) {
-            let s = if let Some(sync_state) = self
+            if let Some(sync_state) = self
                 .persister
                 .get_sync_state(&peer_id)
                 .map_err(PersistentBackendError::PersisterError)?
             {
-                SyncState::decode(&sync_state)?
-            } else {
-                SyncState::default()
-            };
-            self.sync_states.insert(peer_id.clone(), s);
+                let s = SyncState::decode(&sync_state)?;
+                self.sync_states.insert(peer_id.clone(), s);
+            }
         }
-        let sync_state = self.sync_states.get_mut(&peer_id).unwrap();
+        let sync_state = self.sync_states.entry(peer_id.clone()).or_default();
         let patch = self
             .backend
             .receive_sync_message(sync_state, message)
