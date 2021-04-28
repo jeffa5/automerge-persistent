@@ -13,8 +13,14 @@
 //! let db = sled::Config::new().temporary(true).open()?;
 //! let changes_tree = db.open_tree("changes")?;
 //! let documents_tree = db.open_tree("documents")?;
+//! let sync_states_tree = db.open_tree("sync-states")?;
 //!
-//! let persister = SledPersister::new(changes_tree, documents_tree, String::new());
+//! let persister = SledPersister::new(
+//!     changes_tree,
+//!     documents_tree,
+//!     sync_states_tree,
+//!     String::new(),
+//! );
 //! let backend = PersistentBackend::load(persister);
 //! # Ok(())
 //! # }
@@ -29,12 +35,22 @@
 //! let db = sled::Config::new().temporary(true).open()?;
 //! let changes_tree = db.open_tree("changes")?;
 //! let documents_tree = db.open_tree("documents")?;
+//! let sync_states_tree = db.open_tree("sync-states")?;
 //!
-//! let persister1 =
-//!     SledPersister::new(changes_tree.clone(), documents_tree.clone(), "1".to_owned());
+//! let persister1 = SledPersister::new(
+//!     changes_tree.clone(),
+//!     documents_tree.clone(),
+//!     sync_states_tree.clone(),
+//!     "1".to_owned(),
+//! );
 //! let backend1 = PersistentBackend::load(persister1);
 //!
-//! let persister2 = SledPersister::new(changes_tree, documents_tree, "2".to_owned());
+//! let persister2 = SledPersister::new(
+//!     changes_tree,
+//!     documents_tree,
+//!     sync_states_tree,
+//!     "2".to_owned(),
+//! );
 //! let backend2 = PersistentBackend::load(persister2);
 //! # Ok(())
 //! # }
@@ -54,6 +70,7 @@ const DOCUMENT_KEY: &[u8] = b"document";
 pub struct SledPersister {
     changes_tree: sled::Tree,
     document_tree: sled::Tree,
+    sync_states_tree: sled::Tree,
     prefix: String,
 }
 
@@ -67,10 +84,16 @@ pub enum SledPersisterError {
 
 impl SledPersister {
     /// Construct a new persister.
-    pub fn new(changes_tree: sled::Tree, document_tree: sled::Tree, prefix: String) -> Self {
+    pub fn new(
+        changes_tree: sled::Tree,
+        document_tree: sled::Tree,
+        sync_states_tree: sled::Tree,
+        prefix: String,
+    ) -> Self {
         Self {
             changes_tree,
             document_tree,
+            sync_states_tree,
             prefix,
         }
     }
@@ -90,6 +113,12 @@ impl SledPersister {
         key.extend(DOCUMENT_KEY);
         key
     }
+
+    fn make_peer_key(&self, peer_id: &[u8]) -> Vec<u8> {
+        let mut key = self.prefix.as_bytes().to_vec();
+        key.extend(peer_id);
+        key
+    }
 }
 
 impl automerge_persistent::Persister for SledPersister {
@@ -98,7 +127,7 @@ impl automerge_persistent::Persister for SledPersister {
     /// Get all of the current changes.
     fn get_changes(&self) -> Result<Vec<Vec<u8>>, Self::Error> {
         self.changes_tree
-            .iter()
+            .scan_prefix(&self.prefix)
             .values()
             .map(|v| v.map(|v| v.to_vec()).map_err(Self::Error::SledError))
             .collect()
@@ -134,5 +163,35 @@ impl automerge_persistent::Persister for SledPersister {
     fn set_document(&mut self, data: Vec<u8>) -> Result<(), Self::Error> {
         self.document_tree.insert(self.make_document_key(), data)?;
         Ok(())
+    }
+
+    fn get_sync_state(&self, peer_id: &[u8]) -> Result<Option<Vec<u8>>, Self::Error> {
+        let sync_state_key = self.make_peer_key(peer_id);
+        Ok(self
+            .sync_states_tree
+            .get(sync_state_key)?
+            .map(|v| v.to_vec()))
+    }
+
+    fn set_sync_state(&mut self, peer_id: Vec<u8>, sync_state: Vec<u8>) -> Result<(), Self::Error> {
+        let sync_state_key = self.make_peer_key(&peer_id);
+        self.sync_states_tree.insert(sync_state_key, sync_state)?;
+        Ok(())
+    }
+
+    fn remove_sync_states(&mut self, peer_ids: &[&[u8]]) -> Result<(), Self::Error> {
+        for id in peer_ids {
+            let key = self.make_peer_key(id);
+            self.sync_states_tree.remove(key)?;
+        }
+        Ok(())
+    }
+
+    fn get_peer_ids(&self) -> Result<Vec<Vec<u8>>, Self::Error> {
+        self.sync_states_tree
+            .scan_prefix(&self.prefix)
+            .keys()
+            .map(|v| v.map(|v| v.to_vec()).map_err(Self::Error::SledError))
+            .collect()
     }
 }

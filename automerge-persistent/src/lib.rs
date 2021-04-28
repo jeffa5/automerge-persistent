@@ -22,10 +22,10 @@
 
 mod mem;
 
-use std::{error::Error, fmt::Debug};
+use std::{collections::HashMap, error::Error, fmt::Debug};
 
 use automerge::Change;
-use automerge_backend::AutomergeError;
+use automerge_backend::{AutomergeError, SyncMessage, SyncState};
 use automerge_protocol::{ActorId, ChangeHash, Patch, UncompressedChange};
 pub use mem::MemoryPersister;
 
@@ -59,6 +59,27 @@ pub trait Persister {
 
     /// Sets the document to the given data.
     fn set_document(&mut self, data: Vec<u8>) -> Result<(), Self::Error>;
+
+    /// Returns the sync state for the given peer if one exists.
+    ///
+    /// A peer id corresponds to an instance of a backend and may be serving multiple frontends so
+    /// we cannot have it work on ActorIds.
+    fn get_sync_state(&self, peer_id: &[u8]) -> Result<Option<Vec<u8>>, Self::Error>;
+
+    /// Sets the sync state for the given peer.
+    ///
+    /// A peer id corresponds to an instance of a backend and may be serving multiple frontends so
+    /// we cannot have it work on ActorIds.
+    fn set_sync_state(&mut self, peer_id: Vec<u8>, sync_state: Vec<u8>) -> Result<(), Self::Error>;
+
+    /// Removes the sync states associated with the given peer_ids.
+    fn remove_sync_states(&mut self, peer_ids: &[&[u8]]) -> Result<(), Self::Error>;
+
+    /// Returns the list of peer ids with stored SyncStates.
+    ///
+    /// This is intended for use by users to see what peer_ids are taking space so that they can be
+    /// removed during a compaction.
+    fn get_peer_ids(&self) -> Result<Vec<Vec<u8>>, Self::Error>;
 }
 
 /// Errors that persistent backends can return.
@@ -75,10 +96,13 @@ where
     PersisterError(E),
 }
 
+type PeerId = Vec<u8>;
+
 /// A wrapper for a persister and an automerge Backend.
 #[derive(Debug)]
 pub struct PersistentBackend<P: Persister + Debug> {
     backend: automerge::Backend,
+    sync_states: HashMap<PeerId, SyncState>,
     persister: P,
 }
 
@@ -88,6 +112,13 @@ where
 {
     /// Load the persisted changes (both individual changes and a document) from storage and
     /// rebuild the Backend.
+    ///
+    /// ```rust
+    /// # use automerge_persistent::MemoryPersister;
+    /// # use automerge_persistent::PersistentBackend;
+    /// let persister = MemoryPersister::default();
+    /// let backend = PersistentBackend::load(persister).unwrap();
+    /// ```
     pub fn load(persister: P) -> Result<Self, PersistentBackendError<P::Error>> {
         let document = persister
             .get_document()
@@ -109,10 +140,22 @@ where
         backend
             .apply_changes(changes)
             .map_err(PersistentBackendError::AutomergeError)?;
-        Ok(Self { backend, persister })
+        Ok(Self {
+            backend,
+            sync_states: HashMap::new(),
+            persister,
+        })
     }
 
     /// Apply a sequence of changes, typically from a remote backend.
+    ///
+    /// ```rust
+    /// # use automerge_persistent::MemoryPersister;
+    /// # use automerge_persistent::PersistentBackend;
+    /// # let persister = MemoryPersister::default();
+    /// # let mut backend = PersistentBackend::load(persister).unwrap();
+    /// let patch = backend.apply_changes(vec![]).unwrap();
+    /// ```
     pub fn apply_changes(
         &mut self,
         changes: Vec<Change>,
@@ -134,7 +177,7 @@ where
     pub fn apply_local_change(
         &mut self,
         change: UncompressedChange,
-    ) -> Result<(Patch, Change), PersistentBackendError<P::Error>> {
+    ) -> Result<Patch, PersistentBackendError<P::Error>> {
         let (patch, change) = self.backend.apply_local_change(change)?;
         self.persister
             .insert_changes(vec![(
@@ -143,14 +186,28 @@ where
                 change.raw_bytes().to_vec(),
             )])
             .map_err(PersistentBackendError::PersisterError)?;
-        Ok((patch, change))
+        Ok(patch)
     }
 
     /// Compact the storage.
     ///
     /// This first obtains the changes currently in the backend, saves the backend and persists the
     /// saved document. We then can remove the previously obtained changes one by one.
-    pub fn compact(&mut self) -> Result<(), PersistentBackendError<P::Error>> {
+    ///
+    /// It also clears out the storage used up by old sync states for peers by removing those given
+    /// in old_peers.
+    ///
+    /// ```rust
+    /// # use automerge_persistent::MemoryPersister;
+    /// # use automerge_persistent::PersistentBackend;
+    /// # let persister = MemoryPersister::default();
+    /// # let mut backend = PersistentBackend::load(persister).unwrap();
+    /// backend.compact(&[]).unwrap();
+    /// ```
+    pub fn compact(
+        &mut self,
+        old_peer_ids: &[&[u8]],
+    ) -> Result<(), PersistentBackendError<P::Error>> {
         let changes = self.backend.get_changes(&[]);
         let saved_backend = self.backend.save()?;
         self.persister
@@ -159,10 +216,21 @@ where
         self.persister
             .remove_changes(changes.into_iter().map(|c| (c.actor_id(), c.seq)).collect())
             .map_err(PersistentBackendError::PersisterError)?;
+        self.persister
+            .remove_sync_states(old_peer_ids)
+            .map_err(PersistentBackendError::PersisterError)?;
         Ok(())
     }
 
     /// Get a patch from the current data in the backend to populate a frontend.
+    ///
+    /// ```rust
+    /// # use automerge_persistent::MemoryPersister;
+    /// # use automerge_persistent::PersistentBackend;
+    /// # let persister = MemoryPersister::default();
+    /// # let mut backend = PersistentBackend::load(persister).unwrap();
+    /// let patch = backend.get_patch().unwrap();
+    /// ```
     pub fn get_patch(&self) -> Result<Patch, PersistentBackendError<P::Error>> {
         self.backend
             .get_patch()
@@ -180,6 +248,14 @@ where
     }
 
     /// Get all changes that have the given dependencies (transitively obtains more recent ones).
+    ///
+    /// ```rust
+    /// # use automerge_persistent::MemoryPersister;
+    /// # use automerge_persistent::PersistentBackend;
+    /// # let persister = MemoryPersister::default();
+    /// # let mut backend = PersistentBackend::load(persister).unwrap();
+    /// let all_changes = backend.get_changes(&[]);
+    /// ```
     pub fn get_changes(&self, have_deps: &[ChangeHash]) -> Vec<&Change> {
         self.backend.get_changes(have_deps)
     }
@@ -188,13 +264,110 @@ where
     /// pending changes.
     ///
     /// This may not give all hashes required as multiple changes in a sequence could be missing.
-    pub fn get_missing_deps(&self) -> Vec<ChangeHash> {
-        self.backend.get_missing_deps()
+    ///
+    /// ```rust
+    /// # use automerge_persistent::MemoryPersister;
+    /// # use automerge_persistent::PersistentBackend;
+    /// # let persister = MemoryPersister::default();
+    /// # let mut backend = PersistentBackend::load(persister).unwrap();
+    /// let all_missing_changes = backend.get_missing_deps(&[]);
+    /// ```
+    pub fn get_missing_deps(&self, heads: &[ChangeHash]) -> Vec<ChangeHash> {
+        self.backend.get_missing_deps(heads)
     }
 
     /// Get the current heads of the hash graph (changes without successors).
-
+    ///
+    /// ```rust
+    /// # use automerge_persistent::MemoryPersister;
+    /// # use automerge_persistent::PersistentBackend;
+    /// # let persister = MemoryPersister::default();
+    /// # let mut backend = PersistentBackend::load(persister).unwrap();
+    /// let heads = backend.get_heads();
+    /// ```
     pub fn get_heads(&self) -> Vec<ChangeHash> {
         self.backend.get_heads()
+    }
+
+    /// Generate a sync message to be sent to a peer backend.
+    ///
+    /// Peer id is intentionally low level and up to the user as it can be a DNS name, IP address or
+    /// something else.
+    ///
+    /// This internally retrieves the previous sync state from storage and saves the new one
+    /// afterwards.
+    ///
+    /// ```rust
+    /// # use automerge_persistent::MemoryPersister;
+    /// # use automerge_persistent::PersistentBackend;
+    /// # let persister = MemoryPersister::default();
+    /// # let mut backend = PersistentBackend::load(persister).unwrap();
+    /// let message = backend.generate_sync_message(vec![]).unwrap();
+    /// ```
+    pub fn generate_sync_message(
+        &mut self,
+        peer_id: PeerId,
+    ) -> Result<Option<SyncMessage>, PersistentBackendError<P::Error>> {
+        if !self.sync_states.contains_key(&peer_id) {
+            if let Some(sync_state) = self
+                .persister
+                .get_sync_state(&peer_id)
+                .map_err(PersistentBackendError::PersisterError)?
+            {
+                let s = SyncState::decode(&sync_state)?;
+                self.sync_states.insert(peer_id.clone(), s);
+            }
+        }
+        let sync_state = self.sync_states.entry(peer_id.clone()).or_default();
+        let message = self.backend.generate_sync_message(sync_state);
+        self.persister
+            .set_sync_state(
+                peer_id,
+                sync_state
+                    .clone()
+                    .encode()
+                    .map_err(PersistentBackendError::AutomergeError)?,
+            )
+            .map_err(PersistentBackendError::PersisterError)?;
+        Ok(message)
+    }
+
+    /// Receive a sync message from a peer backend.
+    ///
+    /// Peer id is intentionally low level and up to the user as it can be a DNS name, IP address or
+    /// something else.
+    ///
+    /// This internally retrieves the previous sync state from storage and saves the new one
+    /// afterwards.
+    pub fn receive_sync_message(
+        &mut self,
+        peer_id: PeerId,
+        message: SyncMessage,
+    ) -> Result<Option<Patch>, PersistentBackendError<P::Error>> {
+        if !self.sync_states.contains_key(&peer_id) {
+            if let Some(sync_state) = self
+                .persister
+                .get_sync_state(&peer_id)
+                .map_err(PersistentBackendError::PersisterError)?
+            {
+                let s = SyncState::decode(&sync_state)?;
+                self.sync_states.insert(peer_id.clone(), s);
+            }
+        }
+        let sync_state = self.sync_states.entry(peer_id.clone()).or_default();
+        let patch = self
+            .backend
+            .receive_sync_message(sync_state, message)
+            .map_err(PersistentBackendError::AutomergeError)?;
+        self.persister
+            .set_sync_state(
+                peer_id,
+                sync_state
+                    .clone()
+                    .encode()
+                    .map_err(PersistentBackendError::AutomergeError)?,
+            )
+            .map_err(PersistentBackendError::PersisterError)?;
+        Ok(patch)
     }
 }
