@@ -1,6 +1,8 @@
 #![warn(missing_docs)]
 #![warn(missing_crate_level_docs)]
 #![warn(missing_doc_code_examples)]
+#![warn(clippy::pedantic)]
+#![warn(clippy::nursery)]
 
 //! A library for constructing efficient persistent automerge documents.
 //!
@@ -34,7 +36,7 @@ pub use mem::MemoryPersister;
 /// In the event of a power loss changes should still be around for loading after. It is up to the
 /// implementation to decide on trade-offs regarding how often to fsync for example.
 ///
-/// Changes are identified by a pair of actor_id and sequence_number. This uniquely identifies a
+/// Changes are identified by a pair of `actor_id` and `sequence_number`. This uniquely identifies a
 /// change and so is suitable for use as a key in the implementation.
 ///
 /// Documents are saved automerge Backends so are more compact than the raw changes they represent.
@@ -46,10 +48,10 @@ pub trait Persister {
     /// Ordering is not specified as the automerge Backend should handle that.
     fn get_changes(&self) -> Result<Vec<Vec<u8>>, Self::Error>;
 
-    /// Inserts the given change at the unique address specified by the actor_id and sequence_number.
+    /// Inserts the given change at the unique address specified by the `actor_id` and `sequence_number`.
     fn insert_changes(&mut self, changes: Vec<(ActorId, u64, Vec<u8>)>) -> Result<(), Self::Error>;
 
-    /// Removes the change at the unique address specified by the actor_id and sequence_number.
+    /// Removes the change at the unique address specified by the `actor_id` and `sequence_number`.
     ///
     /// If the change does not exist this should not return an error.
     fn remove_changes(&mut self, changes: Vec<(&ActorId, u64)>) -> Result<(), Self::Error>;
@@ -63,21 +65,21 @@ pub trait Persister {
     /// Returns the sync state for the given peer if one exists.
     ///
     /// A peer id corresponds to an instance of a backend and may be serving multiple frontends so
-    /// we cannot have it work on ActorIds.
+    /// we cannot have it work on `ActorIds`.
     fn get_sync_state(&self, peer_id: &[u8]) -> Result<Option<Vec<u8>>, Self::Error>;
 
     /// Sets the sync state for the given peer.
     ///
     /// A peer id corresponds to an instance of a backend and may be serving multiple frontends so
-    /// we cannot have it work on ActorIds.
+    /// we cannot have it work on `ActorIds`.
     fn set_sync_state(&mut self, peer_id: Vec<u8>, sync_state: Vec<u8>) -> Result<(), Self::Error>;
 
-    /// Removes the sync states associated with the given peer_ids.
+    /// Removes the sync states associated with the given `peer_ids`.
     fn remove_sync_states(&mut self, peer_ids: &[&[u8]]) -> Result<(), Self::Error>;
 
-    /// Returns the list of peer ids with stored SyncStates.
+    /// Returns the list of peer ids with stored `SyncStates`.
     ///
-    /// This is intended for use by users to see what peer_ids are taking space so that they can be
+    /// This is intended for use by users to see what `peer_ids` are taking space so that they can be
     /// removed during a compaction.
     fn get_peer_ids(&self) -> Result<Vec<Vec<u8>>, Self::Error>;
 }
@@ -195,7 +197,7 @@ where
     /// saved document. We then can remove the previously obtained changes one by one.
     ///
     /// It also clears out the storage used up by old sync states for peers by removing those given
-    /// in old_peers.
+    /// in `old_peers`.
     ///
     /// ```rust
     /// # use automerge_persistent::MemoryPersister;
@@ -237,7 +239,7 @@ where
             .map_err(PersistentBackendError::AutomergeError)
     }
 
-    /// Get the changes performed by the given actor_id.
+    /// Get the changes performed by the given `actor_id`.
     pub fn get_changes_for_actor_id(
         &self,
         actor_id: &ActorId,

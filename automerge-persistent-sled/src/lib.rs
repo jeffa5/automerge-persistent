@@ -1,6 +1,8 @@
 #![warn(missing_docs)]
 #![warn(missing_crate_level_docs)]
 #![warn(missing_doc_code_examples)]
+#![warn(clippy::pedantic)]
+#![warn(clippy::nursery)]
 
 //! A persister targetting [Sled](https://github.com/spacejam/sled).
 //!
@@ -84,7 +86,7 @@ pub enum SledPersisterError {
 
 impl SledPersister {
     /// Construct a new persister.
-    pub fn new(
+    pub const fn new(
         changes_tree: sled::Tree,
         document_tree: sled::Tree,
         sync_states_tree: sled::Tree,
@@ -98,9 +100,9 @@ impl SledPersister {
         }
     }
 
-    /// Make a key from the prefix, actor_id and sequence_number.
+    /// Make a key from the prefix, `actor_id` and `sequence_number`.
     ///
-    /// Converts the actor_id to bytes and appends the sequence_number in big endian form.
+    /// Converts the `actor_id` to bytes and appends the `sequence_number` in big endian form.
     fn make_key(&self, actor_id: &ActorId, seq: u64) -> Vec<u8> {
         let mut key = self.prefix.as_bytes().to_vec();
         key.extend(&actor_id.to_bytes());

@@ -1,8 +1,10 @@
 #![warn(missing_docs)]
 #![warn(missing_crate_level_docs)]
 #![warn(missing_doc_code_examples)]
+#![warn(clippy::pedantic)]
+#![warn(clippy::nursery)]
 
-//! A persister targetting LocalStorage in the browser.
+//! A persister targetting `LocalStorage` in the browser.
 //!
 //! ```rust,no_run
 //! # use automerge_persistent_localstorage::{LocalStoragePersister, LocalStoragePersisterError};
@@ -24,12 +26,12 @@ use std::collections::HashMap;
 
 use automerge_protocol::ActorId;
 
-/// Persist changes and documents in to LocalStorage.
+/// Persist changes and documents in to `LocalStorage`.
 ///
-/// While aimed at LocalStorage, it accepts any storage that  conforms to the [`web_sys::Storage`]
+/// While aimed at `LocalStorage`, it accepts any storage that  conforms to the [`web_sys::Storage`]
 /// API.
 ///
-/// Since LocalStorage is limited we store changes in a JSON map in one key.
+/// Since `LocalStorage` is limited we store changes in a JSON map in one key.
 #[derive(Debug)]
 pub struct LocalStoragePersister {
     storage: web_sys::Storage,
@@ -52,7 +54,7 @@ pub enum LocalStoragePersisterError {
 }
 
 impl LocalStoragePersister {
-    /// Construct a new LocalStoragePersister.
+    /// Construct a new `LocalStoragePersister`.
     pub fn new(
         storage: web_sys::Storage,
         document_key: String,
@@ -177,9 +179,9 @@ impl automerge_persistent::Persister for LocalStoragePersister {
     }
 }
 
-/// Make a key from the actor_id and sequence_number.
+/// Make a key from the `actor_id` and `sequence_number`.
 ///
-/// Converts the actor_id to a string and appends the sequence_number.
+/// Converts the `actor_id` to a string and appends the `sequence_number`.
 fn make_key(actor_id: &ActorId, seq: u64) -> String {
     let mut key = actor_id.to_hex_string();
     key.push_str(&seq.to_string());
