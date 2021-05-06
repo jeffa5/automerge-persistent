@@ -32,6 +32,7 @@ use automerge_protocol::{ActorId, ChangeHash, Patch, UncompressedChange};
 pub use mem::MemoryPersister;
 
 /// Bytes stored for each of the stored types.
+#[derive(Debug, Default, Clone)]
 pub struct StoredSizes {
     /// Total bytes stored for all changes.
     pub changes: usize,
@@ -93,31 +94,10 @@ pub trait Persister {
     /// removed during a compaction.
     fn get_peer_ids(&self) -> Result<Vec<Vec<u8>>, Self::Error>;
 
-    /// Returns the sizes components being stored consume. This can be used as an indicator of when
-    /// to compact the storage.
+    /// Returns the sizes components being stored consume.
     ///
-    /// It is not expected that this will be called frequently and so the default implementation is
-    /// not performant.
-    ///
-    /// The default implementation calculates sizes by extracting the actual data from the
-    /// datastore.
-    fn sizes(&self) -> Result<StoredSizes, Self::Error> {
-        let changes = self.get_changes()?.iter().map(Vec::len).sum();
-        let document = self.get_document()?.unwrap_or_default().len();
-        let sync_states = self
-            .get_peer_ids()?
-            .iter()
-            .map(|p| self.get_sync_state(p).map(Option::unwrap_or_default))
-            .collect::<Result<Vec<Vec<u8>>, _>>()?
-            .iter()
-            .map(Vec::len)
-            .sum();
-        Ok(StoredSizes {
-            changes,
-            document,
-            sync_states,
-        })
-    }
+    /// This can be used as an indicator of when to compact the storage.
+    fn sizes(&self) -> StoredSizes;
 }
 
 /// Errors that persistent backends can return.

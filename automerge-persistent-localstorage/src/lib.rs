@@ -24,6 +24,7 @@
 
 use std::collections::HashMap;
 
+use automerge_persistent::{Persister, StoredSizes};
 use automerge_protocol::ActorId;
 
 /// Persist changes and documents in to `LocalStorage`.
@@ -40,6 +41,7 @@ pub struct LocalStoragePersister {
     document_key: String,
     changes_key: String,
     sync_states_key: String,
+    sizes: StoredSizes,
 }
 
 /// Possible errors from persisting.
@@ -77,6 +79,20 @@ impl LocalStoragePersister {
         } else {
             HashMap::new()
         };
+        let document = if let Some(doc_string) = storage
+            .get_item(&document_key)
+            .map_err(LocalStoragePersisterError::StorageError)?
+        {
+            let doc = serde_json::from_str::<Vec<u8>>(&doc_string)?;
+            Some(doc)
+        } else {
+            None
+        };
+        let sizes = StoredSizes {
+            changes: changes.values().map(Vec::len).sum(),
+            document: document.unwrap_or_default().len(),
+            sync_states: sync_states.values().map(Vec::len).sum(),
+        };
         Ok(Self {
             storage,
             changes,
@@ -84,11 +100,12 @@ impl LocalStoragePersister {
             document_key,
             changes_key,
             sync_states_key,
+            sizes,
         })
     }
 }
 
-impl automerge_persistent::Persister for LocalStoragePersister {
+impl Persister for LocalStoragePersister {
     type Error = LocalStoragePersisterError;
 
     fn get_changes(&self) -> Result<Vec<Vec<u8>>, Self::Error> {
@@ -99,7 +116,10 @@ impl automerge_persistent::Persister for LocalStoragePersister {
         for (a, s, c) in changes {
             let key = make_key(&a, s);
 
-            self.changes.insert(key, c);
+            self.sizes.changes += c.len();
+            if let Some(old) = self.changes.insert(key, c) {
+                self.sizes.changes -= old.len();
+            }
         }
         self.storage
             .set_item(&self.changes_key, &serde_json::to_string(&self.changes)?)
@@ -111,7 +131,8 @@ impl automerge_persistent::Persister for LocalStoragePersister {
         let mut some_removal = false;
         for (a, s) in changes {
             let key = make_key(a, s);
-            if self.changes.remove(&key).is_some() {
+            if let Some(old) = self.changes.remove(&key) {
+                self.sizes.changes -= old.len();
                 some_removal = true
             }
         }
@@ -139,6 +160,7 @@ impl automerge_persistent::Persister for LocalStoragePersister {
     }
 
     fn set_document(&mut self, data: Vec<u8>) -> Result<(), Self::Error> {
+        self.sizes.document = data.len();
         let data = serde_json::to_string(&data)?;
         self.storage
             .set_item(&self.document_key, &data)
@@ -151,7 +173,10 @@ impl automerge_persistent::Persister for LocalStoragePersister {
     }
 
     fn set_sync_state(&mut self, peer_id: Vec<u8>, sync_state: Vec<u8>) -> Result<(), Self::Error> {
-        self.sync_states.insert(peer_id, sync_state);
+        self.sizes.sync_states += sync_state.len();
+        if let Some(old) = self.sync_states.insert(peer_id, sync_state) {
+            self.sizes.sync_states -= old.len();
+        }
         self.storage
             .set_item(
                 &self.sync_states_key,
@@ -163,7 +188,9 @@ impl automerge_persistent::Persister for LocalStoragePersister {
 
     fn remove_sync_states(&mut self, peer_ids: &[&[u8]]) -> Result<(), Self::Error> {
         for id in peer_ids {
-            self.sync_states.remove(*id);
+            if let Some(old) = self.sync_states.remove(*id) {
+                self.sizes.sync_states -= old.len();
+            }
         }
         self.storage
             .set_item(
@@ -176,6 +203,10 @@ impl automerge_persistent::Persister for LocalStoragePersister {
 
     fn get_peer_ids(&self) -> Result<Vec<Vec<u8>>, Self::Error> {
         Ok(self.sync_states.keys().cloned().collect())
+    }
+
+    fn sizes(&self) -> StoredSizes {
+        self.sizes.clone()
     }
 }
 

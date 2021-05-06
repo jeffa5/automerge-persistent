@@ -11,7 +11,8 @@
 //! ```rust
 //! # use automerge_persistent::PersistentBackend;
 //! # use automerge_persistent_sled::SledPersister;
-//! # fn main() -> Result<(), sled::Error> {
+//! # use automerge_persistent_sled::SledPersisterError;
+//! # fn main() -> Result<(), SledPersisterError> {
 //! let db = sled::Config::new().temporary(true).open()?;
 //! let changes_tree = db.open_tree("changes")?;
 //! let documents_tree = db.open_tree("documents")?;
@@ -22,7 +23,7 @@
 //!     documents_tree,
 //!     sync_states_tree,
 //!     String::new(),
-//! );
+//! )?;
 //! let backend = PersistentBackend::load(persister);
 //! # Ok(())
 //! # }
@@ -33,7 +34,8 @@
 //! ```rust
 //! # use automerge_persistent::PersistentBackend;
 //! # use automerge_persistent_sled::SledPersister;
-//! # fn main() -> Result<(), sled::Error> {
+//! # use automerge_persistent_sled::SledPersisterError;
+//! # fn main() -> Result<(), SledPersisterError> {
 //! let db = sled::Config::new().temporary(true).open()?;
 //! let changes_tree = db.open_tree("changes")?;
 //! let documents_tree = db.open_tree("documents")?;
@@ -44,7 +46,7 @@
 //!     documents_tree.clone(),
 //!     sync_states_tree.clone(),
 //!     "1".to_owned(),
-//! );
+//! )?;
 //! let backend1 = PersistentBackend::load(persister1);
 //!
 //! let persister2 = SledPersister::new(
@@ -52,12 +54,13 @@
 //!     documents_tree,
 //!     sync_states_tree,
 //!     "2".to_owned(),
-//! );
+//! )?;
 //! let backend2 = PersistentBackend::load(persister2);
 //! # Ok(())
 //! # }
 //! ```
 
+use automerge_persistent::{Persister, StoredSizes};
 use automerge_protocol::ActorId;
 
 /// The key to use to store the document in the document tree
@@ -74,6 +77,7 @@ pub struct SledPersister {
     document_tree: sled::Tree,
     sync_states_tree: sled::Tree,
     prefix: String,
+    sizes: StoredSizes,
 }
 
 /// Possible errors from persisting.
@@ -87,18 +91,29 @@ pub enum SledPersisterError {
 impl SledPersister {
     /// Construct a new persister.
     #[must_use]
-    pub const fn new(
+    pub fn new(
         changes_tree: sled::Tree,
         document_tree: sled::Tree,
         sync_states_tree: sled::Tree,
         prefix: String,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, SledPersisterError> {
+        let mut s = Self {
             changes_tree,
             document_tree,
             sync_states_tree,
             prefix,
-        }
+            sizes: StoredSizes::default(),
+        };
+        s.sizes.changes = s.get_changes()?.iter().map(Vec::len).sum();
+        s.sizes.document = s.get_document()?.unwrap_or_default().len();
+        s.sizes.sync_states = s
+            .get_peer_ids()?
+            .iter()
+            .map(|id| s.get_sync_state(id).map(|o| o.unwrap_or_default().len()))
+            .collect::<Result<Vec<usize>, _>>()?
+            .iter()
+            .sum();
+        Ok(s)
     }
 
     /// Make a key from the prefix, `actor_id` and `sequence_number`.
@@ -124,7 +139,7 @@ impl SledPersister {
     }
 }
 
-impl automerge_persistent::Persister for SledPersister {
+impl Persister for SledPersister {
     type Error = SledPersisterError;
 
     /// Get all of the current changes.
@@ -140,7 +155,10 @@ impl automerge_persistent::Persister for SledPersister {
     fn insert_changes(&mut self, changes: Vec<(ActorId, u64, Vec<u8>)>) -> Result<(), Self::Error> {
         for (a, s, c) in changes {
             let key = self.make_key(&a, s);
-            self.changes_tree.insert(key, c)?;
+            self.sizes.changes += c.len();
+            if let Some(old) = self.changes_tree.insert(key, c)? {
+                self.sizes.changes -= old.len();
+            }
         }
         Ok(())
     }
@@ -149,7 +167,9 @@ impl automerge_persistent::Persister for SledPersister {
     fn remove_changes(&mut self, changes: Vec<(&ActorId, u64)>) -> Result<(), Self::Error> {
         for (a, s) in changes {
             let key = self.make_key(a, s);
-            self.changes_tree.remove(key)?;
+            if let Some(old) = self.changes_tree.remove(key)? {
+                self.sizes.changes -= old.len();
+            }
         }
         Ok(())
     }
@@ -164,6 +184,7 @@ impl automerge_persistent::Persister for SledPersister {
 
     /// Set the document in the tree.
     fn set_document(&mut self, data: Vec<u8>) -> Result<(), Self::Error> {
+        self.sizes.document = data.len();
         self.document_tree.insert(self.make_document_key(), data)?;
         Ok(())
     }
@@ -178,14 +199,19 @@ impl automerge_persistent::Persister for SledPersister {
 
     fn set_sync_state(&mut self, peer_id: Vec<u8>, sync_state: Vec<u8>) -> Result<(), Self::Error> {
         let sync_state_key = self.make_peer_key(&peer_id);
-        self.sync_states_tree.insert(sync_state_key, sync_state)?;
+        self.sizes.sync_states += sync_state.len();
+        if let Some(old) = self.sync_states_tree.insert(sync_state_key, sync_state)? {
+            self.sizes.sync_states -= old.len();
+        }
         Ok(())
     }
 
     fn remove_sync_states(&mut self, peer_ids: &[&[u8]]) -> Result<(), Self::Error> {
         for id in peer_ids {
             let key = self.make_peer_key(id);
-            self.sync_states_tree.remove(key)?;
+            if let Some(old) = self.sync_states_tree.remove(key)? {
+                self.sizes.sync_states -= old.len();
+            }
         }
         Ok(())
     }
@@ -196,5 +222,9 @@ impl automerge_persistent::Persister for SledPersister {
             .keys()
             .map(|v| v.map(|v| v.to_vec()).map_err(Self::Error::SledError))
             .collect()
+    }
+
+    fn sizes(&self) -> StoredSizes {
+        self.sizes.clone()
     }
 }
