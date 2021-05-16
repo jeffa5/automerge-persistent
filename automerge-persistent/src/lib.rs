@@ -24,10 +24,15 @@
 
 mod mem;
 
-use std::{collections::HashMap, error::Error, fmt::Debug};
+use std::{
+    collections::HashMap,
+    error::Error,
+    fmt::Debug,
+    sync::{Arc, Mutex},
+};
 
 use automerge::Change;
-use automerge_backend::{AutomergeError, SyncMessage, SyncState};
+use automerge_backend::{AutomergeError, ChangeEventHandler, EventHandler, SyncMessage, SyncState};
 use automerge_protocol::{ActorId, ChangeHash, Patch, UncompressedChange};
 pub use mem::MemoryPersister;
 
@@ -121,12 +126,12 @@ type PeerId = Vec<u8>;
 pub struct PersistentBackend<P: Persister + Debug> {
     backend: automerge::Backend,
     sync_states: HashMap<PeerId, SyncState>,
-    persister: P,
+    persister: Arc<Mutex<P>>,
 }
 
 impl<P> PersistentBackend<P>
 where
-    P: Persister + Debug,
+    P: Persister + Debug + Send + 'static,
 {
     /// Load the persisted changes (both individual changes and a document) from storage and
     /// rebuild the Backend.
@@ -150,6 +155,25 @@ where
         let change_bytes = persister
             .get_changes()
             .map_err(PersistentBackendError::PersisterError)?;
+
+        let persister = Arc::new(Mutex::new(persister));
+        let persister_clone = persister.clone();
+
+        backend.add_event_handler(EventHandler::BeforeApplyChange(ChangeEventHandler(
+            Box::new(move |change| {
+                persister_clone
+                    .lock()
+                    .expect("Failed to acquire persister lock")
+                    .insert_changes(vec![(
+                        change.actor_id().clone(),
+                        change.seq,
+                        change.raw_bytes().to_vec(),
+                    )])
+                    .map_err(PersistentBackendError::PersisterError)
+                    .ok();
+            }),
+        )));
+
         let mut changes = Vec::new();
         for change_bytes in change_bytes {
             changes.push(Change::from_bytes(change_bytes)?)
@@ -179,6 +203,8 @@ where
         changes: Vec<Change>,
     ) -> Result<Patch, PersistentBackendError<P::Error>> {
         self.persister
+            .lock()
+            .expect("Failed to acquire persister lock")
             .insert_changes(
                 changes
                     .iter()
@@ -198,6 +224,8 @@ where
     ) -> Result<Patch, PersistentBackendError<P::Error>> {
         let (patch, change) = self.backend.apply_local_change(change)?;
         self.persister
+            .lock()
+            .expect("Failed to acquire persister lock")
             .insert_changes(vec![(
                 change.actor_id().clone(),
                 change.seq,
@@ -228,13 +256,17 @@ where
     ) -> Result<(), PersistentBackendError<P::Error>> {
         let changes = self.backend.get_changes(&[]);
         let saved_backend = self.backend.save()?;
-        self.persister
+        let mut persister = self
+            .persister
+            .lock()
+            .expect("Failed to acquire persister lock");
+        persister
             .set_document(saved_backend)
             .map_err(PersistentBackendError::PersisterError)?;
-        self.persister
+        persister
             .remove_changes(changes.into_iter().map(|c| (c.actor_id(), c.seq)).collect())
             .map_err(PersistentBackendError::PersisterError)?;
-        self.persister
+        persister
             .remove_sync_states(old_peer_ids)
             .map_err(PersistentBackendError::PersisterError)?;
         Ok(())
@@ -329,6 +361,8 @@ where
         if !self.sync_states.contains_key(&peer_id) {
             if let Some(sync_state) = self
                 .persister
+                .lock()
+                .expect("Failed to acquire persister lock")
                 .get_sync_state(&peer_id)
                 .map_err(PersistentBackendError::PersisterError)?
             {
@@ -339,6 +373,8 @@ where
         let sync_state = self.sync_states.entry(peer_id.clone()).or_default();
         let message = self.backend.generate_sync_message(sync_state);
         self.persister
+            .lock()
+            .expect("Failed to acquire persister lock")
             .set_sync_state(
                 peer_id,
                 sync_state
@@ -365,6 +401,8 @@ where
         if !self.sync_states.contains_key(&peer_id) {
             if let Some(sync_state) = self
                 .persister
+                .lock()
+                .expect("Failed to acquire persister lock")
                 .get_sync_state(&peer_id)
                 .map_err(PersistentBackendError::PersisterError)?
             {
@@ -378,6 +416,8 @@ where
             .receive_sync_message(sync_state, message)
             .map_err(PersistentBackendError::AutomergeError)?;
         self.persister
+            .lock()
+            .expect("Failed to acquire persister lock")
             .set_sync_state(
                 peer_id,
                 sync_state
