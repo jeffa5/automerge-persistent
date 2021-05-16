@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use automerge::Change;
-use automerge_backend::{EventHandler, SyncMessage, SyncState};
+use automerge_backend::{EventHandler, EventHandlerId, SyncMessage, SyncState};
 use automerge_protocol::{ActorId, ChangeHash, Patch, UncompressedChange};
 
 pub trait Backend: Sized {
@@ -11,7 +11,7 @@ pub trait Backend: Sized {
 
     fn new() -> Self;
 
-    fn add_event_handler(&mut self, event_handler: EventHandler);
+    fn add_event_handler(&mut self, event_handler: EventHandler) -> EventHandlerId;
 
     fn apply_changes(&mut self, changes: Vec<Change>) -> Result<Patch, Self::Error>;
 
@@ -32,7 +32,10 @@ pub trait Backend: Sized {
 
     fn get_heads(&self) -> Vec<ChangeHash>;
 
-    fn generate_sync_message(&mut self, sync_state: &mut SyncState) -> Option<SyncMessage>;
+    fn generate_sync_message(
+        &mut self,
+        sync_state: &mut SyncState,
+    ) -> Result<Option<SyncMessage>, Self::Error>;
 
     fn receive_sync_message(
         &mut self,
@@ -91,8 +94,11 @@ impl Backend for automerge::Backend {
         self.get_heads()
     }
 
-    fn generate_sync_message(&mut self, sync_state: &mut SyncState) -> Option<SyncMessage> {
-        self.generate_sync_message(sync_state)
+    fn generate_sync_message(
+        &mut self,
+        sync_state: &mut SyncState,
+    ) -> Result<Option<SyncMessage>, Self::Error> {
+        Ok(self.generate_sync_message(sync_state))
     }
 
     fn receive_sync_message(

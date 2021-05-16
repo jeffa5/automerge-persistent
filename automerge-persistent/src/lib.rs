@@ -36,9 +36,9 @@ use std::{
 use automerge::Change;
 use automerge_backend::{AutomergeError, ChangeEventHandler, EventHandler, SyncMessage, SyncState};
 use automerge_protocol::{ActorId, ChangeHash, Patch, UncompressedChange};
-use backend::Backend;
+pub use backend::Backend;
 pub use mem::MemoryPersister;
-use persister::Persister;
+pub use persister::Persister;
 
 /// Bytes stored for each of the stored types.
 #[derive(Debug, Default, Clone)]
@@ -93,10 +93,7 @@ where
     /// let persister = MemoryPersister::default();
     /// let backend = PersistentBackend::load(persister).unwrap();
     /// ```
-    pub fn load(
-        persister: P,
-        backend: B,
-    ) -> Result<Self, PersistentBackendError<P::Error, B::Error>> {
+    pub fn load(persister: P) -> Result<Self, PersistentBackendError<P::Error, B::Error>> {
         let document = persister
             .get_document()
             .map_err(PersistentBackendError::PersisterError)?;
@@ -129,7 +126,10 @@ where
 
         let mut changes = Vec::new();
         for change_bytes in change_bytes {
-            changes.push(Change::from_bytes(change_bytes)?)
+            changes.push(
+                Change::from_bytes(change_bytes)
+                    .map_err(|e| PersistentBackendError::AutomergeError(e.into()))?,
+            )
         }
 
         backend
@@ -325,16 +325,25 @@ where
                 .get_sync_state(&peer_id)
                 .map_err(PersistentBackendError::PersisterError)?
             {
-                let s = SyncState::decode(&sync_state)?;
+                let s = SyncState::decode(&sync_state)
+                    .map_err(|e| PersistentBackendError::AutomergeError(e.into()))?;
                 self.sync_states.insert(peer_id.clone(), s);
             }
         }
         let sync_state = self.sync_states.entry(peer_id.clone()).or_default();
-        let message = self.backend.generate_sync_message(sync_state);
+        let message = self
+            .backend
+            .generate_sync_message(sync_state)
+            .map_err(PersistentBackendError::BackendError)?;
         self.persister
             .lock()
             .expect("Failed to acquire persister lock")
-            .set_sync_state(peer_id, sync_state.clone().encode()?)
+            .set_sync_state(
+                peer_id,
+                sync_state
+                    .encode()
+                    .map_err(|e| PersistentBackendError::AutomergeError(e.into()))?,
+            )
             .map_err(PersistentBackendError::PersisterError)?;
         Ok(message)
     }
@@ -359,7 +368,8 @@ where
                 .get_sync_state(&peer_id)
                 .map_err(PersistentBackendError::PersisterError)?
             {
-                let s = SyncState::decode(&sync_state)?;
+                let s = SyncState::decode(&sync_state)
+                    .map_err(|e| PersistentBackendError::AutomergeError(e.into()))?;
                 self.sync_states.insert(peer_id.clone(), s);
             }
         }
@@ -371,7 +381,12 @@ where
         self.persister
             .lock()
             .expect("Failed to acquire persister lock")
-            .set_sync_state(peer_id, sync_state.clone().encode()?)
+            .set_sync_state(
+                peer_id,
+                sync_state
+                    .encode()
+                    .map_err(|e| PersistentBackendError::AutomergeError(e.into()))?,
+            )
             .map_err(PersistentBackendError::PersisterError)?;
         Ok(patch)
     }

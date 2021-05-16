@@ -1,4 +1,5 @@
 use automerge::{InvalidChangeRequest, LocalChange, Path, Primitive, Value};
+use automerge_persistent::PersistentBackend;
 use criterion::{criterion_group, criterion_main, Criterion};
 
 fn small_backend_apply_local_change(c: &mut Criterion) {
@@ -13,7 +14,10 @@ fn small_backend_apply_local_change(c: &mut Criterion) {
                     "".to_owned(),
                 )
                 .unwrap();
-                let backend = automerge_persistent::PersistentBackend::load(sled).unwrap();
+                let backend: PersistentBackend<
+                    automerge_persistent_sled::SledPersister,
+                    automerge::Backend,
+                > = automerge_persistent::PersistentBackend::load(sled).unwrap();
                 let mut frontend = automerge::Frontend::new();
                 let ((), change) = frontend
                     .change::<_, _, InvalidChangeRequest>(None, |doc| {
@@ -46,7 +50,10 @@ fn small_backend_apply_local_change_flush(c: &mut Criterion) {
                     "".to_owned(),
                 )
                 .unwrap();
-                let backend = automerge_persistent::PersistentBackend::load(sled).unwrap();
+                let backend: PersistentBackend<
+                    automerge_persistent_sled::SledPersister,
+                    automerge::Backend,
+                > = automerge_persistent::PersistentBackend::load(sled).unwrap();
                 let mut frontend = automerge::Frontend::new();
                 let ((), change) = frontend
                     .change::<_, _, InvalidChangeRequest>(None, |doc| {
@@ -82,8 +89,11 @@ fn small_backend_apply_changes(c: &mut Criterion) {
                     "".to_owned(),
                 )
                 .unwrap();
-                let mut other_backend = automerge::Backend::init();
-                let backend = automerge_persistent::PersistentBackend::load(sled).unwrap();
+                let mut other_backend = automerge::Backend::new();
+                let backend: PersistentBackend<
+                    automerge_persistent_sled::SledPersister,
+                    automerge::Backend,
+                > = automerge_persistent::PersistentBackend::load(sled).unwrap();
                 let mut frontend = automerge::Frontend::new();
                 let ((), change) = frontend
                     .change::<_, _, InvalidChangeRequest>(None, |doc| {
@@ -121,7 +131,10 @@ fn small_backend_compact(c: &mut Criterion) {
                     "".to_owned(),
                 )
                 .unwrap();
-                let mut backend = automerge_persistent::PersistentBackend::load(sled).unwrap();
+                let mut backend: PersistentBackend<
+                    automerge_persistent_sled::SledPersister,
+                    automerge::Backend,
+                > = automerge_persistent::PersistentBackend::load(sled).unwrap();
                 let mut frontend = automerge::Frontend::new();
                 let ((), change) = frontend
                     .change::<_, _, InvalidChangeRequest>(None, |doc| {
