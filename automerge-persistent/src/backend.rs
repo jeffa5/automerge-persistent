@@ -98,7 +98,7 @@ impl Backend for automerge::Backend {
         &mut self,
         sync_state: &mut SyncState,
     ) -> Result<Option<SyncMessage>, Self::Error> {
-        Ok(self.generate_sync_message(sync_state))
+        Ok(Self::generate_sync_message(self, sync_state))
     }
 
     fn receive_sync_message(
