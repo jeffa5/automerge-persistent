@@ -100,7 +100,7 @@ where
         let mut backend = if let Some(document) = document {
             B::load(document).map_err(PersistentBackendError::BackendError)?
         } else {
-            B::new()
+            B::default()
         };
 
         let change_bytes = persister

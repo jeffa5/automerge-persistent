@@ -4,12 +4,10 @@ use automerge::Change;
 use automerge_backend::{EventHandler, EventHandlerId, SyncMessage, SyncState};
 use automerge_protocol::{ActorId, ChangeHash, Patch, UncompressedChange};
 
-pub trait Backend: Sized {
+pub trait Backend: Sized + Default {
     type Error: Error;
 
     fn load(document: Vec<u8>) -> Result<Self, Self::Error>;
-
-    fn new() -> Self;
 
     fn add_event_handler(&mut self, event_handler: EventHandler) -> EventHandlerId;
 
@@ -49,10 +47,6 @@ impl Backend for automerge::Backend {
 
     fn load(document: Vec<u8>) -> Result<Self, Self::Error> {
         Self::load(document)
-    }
-
-    fn new() -> Self {
-        Self::new()
     }
 
     fn add_event_handler(&mut self, event_handler: EventHandler) -> EventHandlerId {
