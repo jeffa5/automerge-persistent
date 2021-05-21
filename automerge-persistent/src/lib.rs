@@ -22,11 +22,12 @@
 //! # }
 //! ```
 
+mod backend;
 mod mem;
+mod persister;
 
 use std::{
     collections::HashMap,
-    error::Error,
     fmt::Debug,
     sync::{Arc, Mutex},
 };
@@ -34,7 +35,9 @@ use std::{
 use automerge::Change;
 use automerge_backend::{AutomergeError, ChangeEventHandler, EventHandler, SyncMessage, SyncState};
 use automerge_protocol::{ActorId, ChangeHash, Patch, UncompressedChange};
+pub use backend::Backend;
 pub use mem::MemoryPersister;
+pub use persister::Persister;
 
 /// Bytes stored for each of the stored types.
 #[derive(Debug, Default, Clone)]
@@ -47,71 +50,17 @@ pub struct StoredSizes {
     pub sync_states: usize,
 }
 
-/// A Persister persists both changes and documents to durable storage.
-///
-/// In the event of a power loss changes should still be around for loading after. It is up to the
-/// implementation to decide on trade-offs regarding how often to fsync for example.
-///
-/// Changes are identified by a pair of `actor_id` and `sequence_number`. This uniquely identifies a
-/// change and so is suitable for use as a key in the implementation.
-///
-/// Documents are saved automerge Backends so are more compact than the raw changes they represent.
-pub trait Persister {
-    /// The error type that the operations can produce
-    type Error: Debug + Error + 'static;
-
-    /// Returns all of the changes that have been persisted through this persister.
-    /// Ordering is not specified as the automerge Backend should handle that.
-    fn get_changes(&self) -> Result<Vec<Vec<u8>>, Self::Error>;
-
-    /// Inserts the given change at the unique address specified by the `actor_id` and `sequence_number`.
-    fn insert_changes(&mut self, changes: Vec<(ActorId, u64, Vec<u8>)>) -> Result<(), Self::Error>;
-
-    /// Removes the change at the unique address specified by the `actor_id` and `sequence_number`.
-    ///
-    /// If the change does not exist this should not return an error.
-    fn remove_changes(&mut self, changes: Vec<(&ActorId, u64)>) -> Result<(), Self::Error>;
-
-    /// Returns the document, if one has been persisted previously.
-    fn get_document(&self) -> Result<Option<Vec<u8>>, Self::Error>;
-
-    /// Sets the document to the given data.
-    fn set_document(&mut self, data: Vec<u8>) -> Result<(), Self::Error>;
-
-    /// Returns the sync state for the given peer if one exists.
-    ///
-    /// A peer id corresponds to an instance of a backend and may be serving multiple frontends so
-    /// we cannot have it work on `ActorIds`.
-    fn get_sync_state(&self, peer_id: &[u8]) -> Result<Option<Vec<u8>>, Self::Error>;
-
-    /// Sets the sync state for the given peer.
-    ///
-    /// A peer id corresponds to an instance of a backend and may be serving multiple frontends so
-    /// we cannot have it work on `ActorIds`.
-    fn set_sync_state(&mut self, peer_id: Vec<u8>, sync_state: Vec<u8>) -> Result<(), Self::Error>;
-
-    /// Removes the sync states associated with the given `peer_ids`.
-    fn remove_sync_states(&mut self, peer_ids: &[&[u8]]) -> Result<(), Self::Error>;
-
-    /// Returns the list of peer ids with stored `SyncStates`.
-    ///
-    /// This is intended for use by users to see what `peer_ids` are taking space so that they can be
-    /// removed during a compaction.
-    fn get_peer_ids(&self) -> Result<Vec<Vec<u8>>, Self::Error>;
-
-    /// Returns the sizes components being stored consume.
-    ///
-    /// This can be used as an indicator of when to compact the storage.
-    fn sizes(&self) -> StoredSizes;
-}
-
 /// Errors that persistent backends can return.
 #[derive(Debug, thiserror::Error)]
-pub enum PersistentBackendError<E>
+pub enum Error<E, B>
 where
-    E: Debug + Error + 'static,
+    E: Debug + std::error::Error + 'static,
+    B: std::error::Error + 'static,
 {
-    /// An internal automerge error.
+    /// An internal backend error.
+    #[error(transparent)]
+    BackendError(B),
+    /// An automerge error.
     #[error(transparent)]
     AutomergeError(#[from] AutomergeError),
     /// A persister error.
@@ -123,15 +72,16 @@ type PeerId = Vec<u8>;
 
 /// A wrapper for a persister and an automerge Backend.
 #[derive(Debug)]
-pub struct PersistentBackend<P: Persister + Debug> {
-    backend: automerge::Backend,
+pub struct PersistentBackend<P: Persister + Debug, B: Backend> {
+    backend: B,
     sync_states: HashMap<PeerId, SyncState>,
     persister: Arc<Mutex<P>>,
 }
 
-impl<P> PersistentBackend<P>
+impl<P, B> PersistentBackend<P, B>
 where
     P: Persister + Debug + Send + 'static,
+    B: Backend,
 {
     /// Load the persisted changes (both individual changes and a document) from storage and
     /// rebuild the Backend.
@@ -142,19 +92,15 @@ where
     /// let persister = MemoryPersister::default();
     /// let backend = PersistentBackend::load(persister).unwrap();
     /// ```
-    pub fn load(persister: P) -> Result<Self, PersistentBackendError<P::Error>> {
-        let document = persister
-            .get_document()
-            .map_err(PersistentBackendError::PersisterError)?;
+    pub fn load(persister: P) -> Result<Self, Error<P::Error, B::Error>> {
+        let document = persister.get_document().map_err(Error::PersisterError)?;
         let mut backend = if let Some(document) = document {
-            automerge::Backend::load(document)?
+            B::load(document).map_err(Error::BackendError)?
         } else {
-            automerge::Backend::init()
+            B::default()
         };
 
-        let change_bytes = persister
-            .get_changes()
-            .map_err(PersistentBackendError::PersisterError)?;
+        let change_bytes = persister.get_changes().map_err(Error::PersisterError)?;
 
         let persister = Arc::new(Mutex::new(persister));
         let persister_clone = persister.clone();
@@ -169,19 +115,20 @@ where
                         change.seq,
                         change.raw_bytes().to_vec(),
                     )])
-                    .map_err(PersistentBackendError::PersisterError)
-                    .ok();
+                    .unwrap();
             }),
         )));
 
         let mut changes = Vec::new();
         for change_bytes in change_bytes {
-            changes.push(Change::from_bytes(change_bytes)?)
+            changes.push(
+                Change::from_bytes(change_bytes).map_err(|e| Error::AutomergeError(e.into()))?,
+            )
         }
 
         backend
             .apply_changes(changes)
-            .map_err(PersistentBackendError::AutomergeError)?;
+            .map_err(Error::BackendError)?;
         Ok(Self {
             backend,
             sync_states: HashMap::new(),
@@ -201,7 +148,7 @@ where
     pub fn apply_changes(
         &mut self,
         changes: Vec<Change>,
-    ) -> Result<Patch, PersistentBackendError<P::Error>> {
+    ) -> Result<Patch, Error<P::Error, B::Error>> {
         self.persister
             .lock()
             .expect("Failed to acquire persister lock")
@@ -211,18 +158,21 @@ where
                     .map(|c| (c.actor_id().clone(), c.seq, c.raw_bytes().to_vec()))
                     .collect(),
             )
-            .map_err(PersistentBackendError::PersisterError)?;
+            .map_err(Error::PersisterError)?;
         self.backend
             .apply_changes(changes)
-            .map_err(PersistentBackendError::AutomergeError)
+            .map_err(Error::BackendError)
     }
 
     /// Apply a local change, typically from a local frontend.
     pub fn apply_local_change(
         &mut self,
         change: UncompressedChange,
-    ) -> Result<Patch, PersistentBackendError<P::Error>> {
-        let (patch, change) = self.backend.apply_local_change(change)?;
+    ) -> Result<Patch, Error<P::Error, B::Error>> {
+        let (patch, change) = self
+            .backend
+            .apply_local_change(change)
+            .map_err(Error::BackendError)?;
         self.persister
             .lock()
             .expect("Failed to acquire persister lock")
@@ -231,7 +181,7 @@ where
                 change.seq,
                 change.raw_bytes().to_vec(),
             )])
-            .map_err(PersistentBackendError::PersisterError)?;
+            .map_err(Error::PersisterError)?;
         Ok(patch)
     }
 
@@ -250,25 +200,22 @@ where
     /// # let mut backend = PersistentBackend::load(persister).unwrap();
     /// backend.compact(&[]).unwrap();
     /// ```
-    pub fn compact(
-        &mut self,
-        old_peer_ids: &[&[u8]],
-    ) -> Result<(), PersistentBackendError<P::Error>> {
+    pub fn compact(&mut self, old_peer_ids: &[&[u8]]) -> Result<(), Error<P::Error, B::Error>> {
         let changes = self.backend.get_changes(&[]);
-        let saved_backend = self.backend.save()?;
+        let saved_backend = self.backend.save().map_err(Error::BackendError)?;
         let mut persister = self
             .persister
             .lock()
             .expect("Failed to acquire persister lock");
         persister
             .set_document(saved_backend)
-            .map_err(PersistentBackendError::PersisterError)?;
+            .map_err(Error::PersisterError)?;
         persister
             .remove_changes(changes.into_iter().map(|c| (c.actor_id(), c.seq)).collect())
-            .map_err(PersistentBackendError::PersisterError)?;
+            .map_err(Error::PersisterError)?;
         persister
             .remove_sync_states(old_peer_ids)
-            .map_err(PersistentBackendError::PersisterError)?;
+            .map_err(Error::PersisterError)?;
         Ok(())
     }
 
@@ -281,20 +228,18 @@ where
     /// # let mut backend = PersistentBackend::load(persister).unwrap();
     /// let patch = backend.get_patch().unwrap();
     /// ```
-    pub fn get_patch(&self) -> Result<Patch, PersistentBackendError<P::Error>> {
-        self.backend
-            .get_patch()
-            .map_err(PersistentBackendError::AutomergeError)
+    pub fn get_patch(&self) -> Result<Patch, Error<P::Error, B::Error>> {
+        self.backend.get_patch().map_err(Error::BackendError)
     }
 
     /// Get the changes performed by the given `actor_id`.
     pub fn get_changes_for_actor_id(
         &self,
         actor_id: &ActorId,
-    ) -> Result<Vec<&Change>, PersistentBackendError<P::Error>> {
+    ) -> Result<Vec<&Change>, Error<P::Error, B::Error>> {
         self.backend
             .get_changes_for_actor_id(actor_id)
-            .map_err(PersistentBackendError::AutomergeError)
+            .map_err(Error::BackendError)
     }
 
     /// Get all changes that have the given dependencies (transitively obtains more recent ones).
@@ -357,32 +302,35 @@ where
     pub fn generate_sync_message(
         &mut self,
         peer_id: PeerId,
-    ) -> Result<Option<SyncMessage>, PersistentBackendError<P::Error>> {
+    ) -> Result<Option<SyncMessage>, Error<P::Error, B::Error>> {
         if !self.sync_states.contains_key(&peer_id) {
             if let Some(sync_state) = self
                 .persister
                 .lock()
                 .expect("Failed to acquire persister lock")
                 .get_sync_state(&peer_id)
-                .map_err(PersistentBackendError::PersisterError)?
+                .map_err(Error::PersisterError)?
             {
-                let s = SyncState::decode(&sync_state)?;
+                let s =
+                    SyncState::decode(&sync_state).map_err(|e| Error::AutomergeError(e.into()))?;
                 self.sync_states.insert(peer_id.clone(), s);
             }
         }
         let sync_state = self.sync_states.entry(peer_id.clone()).or_default();
-        let message = self.backend.generate_sync_message(sync_state);
+        let message = self
+            .backend
+            .generate_sync_message(sync_state)
+            .map_err(Error::BackendError)?;
         self.persister
             .lock()
             .expect("Failed to acquire persister lock")
             .set_sync_state(
                 peer_id,
                 sync_state
-                    .clone()
                     .encode()
-                    .map_err(PersistentBackendError::AutomergeError)?,
+                    .map_err(|e| Error::AutomergeError(e.into()))?,
             )
-            .map_err(PersistentBackendError::PersisterError)?;
+            .map_err(Error::PersisterError)?;
         Ok(message)
     }
 
@@ -397,16 +345,17 @@ where
         &mut self,
         peer_id: PeerId,
         message: SyncMessage,
-    ) -> Result<Option<Patch>, PersistentBackendError<P::Error>> {
+    ) -> Result<Option<Patch>, Error<P::Error, B::Error>> {
         if !self.sync_states.contains_key(&peer_id) {
             if let Some(sync_state) = self
                 .persister
                 .lock()
                 .expect("Failed to acquire persister lock")
                 .get_sync_state(&peer_id)
-                .map_err(PersistentBackendError::PersisterError)?
+                .map_err(Error::PersisterError)?
             {
-                let s = SyncState::decode(&sync_state)?;
+                let s =
+                    SyncState::decode(&sync_state).map_err(|e| Error::AutomergeError(e.into()))?;
                 self.sync_states.insert(peer_id.clone(), s);
             }
         }
@@ -414,18 +363,17 @@ where
         let patch = self
             .backend
             .receive_sync_message(sync_state, message)
-            .map_err(PersistentBackendError::AutomergeError)?;
+            .map_err(Error::BackendError)?;
         self.persister
             .lock()
             .expect("Failed to acquire persister lock")
             .set_sync_state(
                 peer_id,
                 sync_state
-                    .clone()
                     .encode()
-                    .map_err(PersistentBackendError::AutomergeError)?,
+                    .map_err(|e| Error::AutomergeError(e.into()))?,
             )
-            .map_err(PersistentBackendError::PersisterError)?;
+            .map_err(Error::PersisterError)?;
         Ok(patch)
     }
 }
