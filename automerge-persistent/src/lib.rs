@@ -15,9 +15,10 @@
 //! ```rust
 //! # use automerge_persistent::MemoryPersister;
 //! # use automerge_persistent::PersistentBackend;
-//! # fn main() -> Result<(), automerge_persistent::PersistentBackendError<std::convert::Infallible>> {
+//! # fn main() -> Result<(), automerge_persistent::Error<std::convert::Infallible,
+//! automerge_backend::AutomergeError>> {
 //! let persister = MemoryPersister::default();
-//! let backend = PersistentBackend::load(persister)?;
+//! let backend = PersistentBackend::<_, automerge::Backend>::load(persister)?;
 //! # Ok(())
 //! # }
 //! ```
@@ -90,7 +91,7 @@ where
     /// # use automerge_persistent::MemoryPersister;
     /// # use automerge_persistent::PersistentBackend;
     /// let persister = MemoryPersister::default();
-    /// let backend = PersistentBackend::load(persister).unwrap();
+    /// let backend = PersistentBackend::<_, automerge::Backend>::load(persister).unwrap();
     /// ```
     pub fn load(persister: P) -> Result<Self, Error<P::Error, B::Error>> {
         let document = persister.get_document().map_err(Error::PersisterError)?;
@@ -142,7 +143,7 @@ where
     /// # use automerge_persistent::MemoryPersister;
     /// # use automerge_persistent::PersistentBackend;
     /// # let persister = MemoryPersister::default();
-    /// # let mut backend = PersistentBackend::load(persister).unwrap();
+    /// # let mut backend = PersistentBackend::<_, automerge::Backend>::load(persister).unwrap();
     /// let patch = backend.apply_changes(vec![]).unwrap();
     /// ```
     pub fn apply_changes(
@@ -197,7 +198,7 @@ where
     /// # use automerge_persistent::MemoryPersister;
     /// # use automerge_persistent::PersistentBackend;
     /// # let persister = MemoryPersister::default();
-    /// # let mut backend = PersistentBackend::load(persister).unwrap();
+    /// # let mut backend = PersistentBackend::<_, automerge::Backend>::load(persister).unwrap();
     /// backend.compact(&[]).unwrap();
     /// ```
     pub fn compact(&mut self, old_peer_ids: &[&[u8]]) -> Result<(), Error<P::Error, B::Error>> {
@@ -225,7 +226,7 @@ where
     /// # use automerge_persistent::MemoryPersister;
     /// # use automerge_persistent::PersistentBackend;
     /// # let persister = MemoryPersister::default();
-    /// # let mut backend = PersistentBackend::load(persister).unwrap();
+    /// # let mut backend = PersistentBackend::<_, automerge::Backend>::load(persister).unwrap();
     /// let patch = backend.get_patch().unwrap();
     /// ```
     pub fn get_patch(&self) -> Result<Patch, Error<P::Error, B::Error>> {
@@ -248,7 +249,7 @@ where
     /// # use automerge_persistent::MemoryPersister;
     /// # use automerge_persistent::PersistentBackend;
     /// # let persister = MemoryPersister::default();
-    /// # let mut backend = PersistentBackend::load(persister).unwrap();
+    /// # let mut backend = PersistentBackend::<_, automerge::Backend>::load(persister).unwrap();
     /// let all_changes = backend.get_changes(&[]);
     /// ```
     pub fn get_changes(&self, have_deps: &[ChangeHash]) -> Vec<&Change> {
@@ -264,7 +265,7 @@ where
     /// # use automerge_persistent::MemoryPersister;
     /// # use automerge_persistent::PersistentBackend;
     /// # let persister = MemoryPersister::default();
-    /// # let mut backend = PersistentBackend::load(persister).unwrap();
+    /// # let mut backend = PersistentBackend::<_, automerge::Backend>::load(persister).unwrap();
     /// let all_missing_changes = backend.get_missing_deps(&[]);
     /// ```
     pub fn get_missing_deps(&self, heads: &[ChangeHash]) -> Vec<ChangeHash> {
@@ -277,7 +278,7 @@ where
     /// # use automerge_persistent::MemoryPersister;
     /// # use automerge_persistent::PersistentBackend;
     /// # let persister = MemoryPersister::default();
-    /// # let mut backend = PersistentBackend::load(persister).unwrap();
+    /// # let mut backend = PersistentBackend::<_, automerge::Backend>::load(persister).unwrap();
     /// let heads = backend.get_heads();
     /// ```
     pub fn get_heads(&self) -> Vec<ChangeHash> {
@@ -296,7 +297,7 @@ where
     /// # use automerge_persistent::MemoryPersister;
     /// # use automerge_persistent::PersistentBackend;
     /// # let persister = MemoryPersister::default();
-    /// # let mut backend = PersistentBackend::load(persister).unwrap();
+    /// # let mut backend = PersistentBackend::<_, automerge::Backend>::load(persister).unwrap();
     /// let message = backend.generate_sync_message(vec![]).unwrap();
     /// ```
     pub fn generate_sync_message(
