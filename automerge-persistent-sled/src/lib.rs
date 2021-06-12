@@ -23,6 +23,7 @@
 //!     documents_tree,
 //!     sync_states_tree,
 //!     String::new(),
+//!     true, // sync
 //! )?;
 //! let backend = PersistentBackend::load(persister);
 //! # Ok(())
@@ -46,6 +47,7 @@
 //!     documents_tree.clone(),
 //!     sync_states_tree.clone(),
 //!     "1".to_owned(),
+//!     true, // sync
 //! )?;
 //! let backend1 = PersistentBackend::load(persister1);
 //!
@@ -54,6 +56,7 @@
 //!     documents_tree,
 //!     sync_states_tree,
 //!     "2".to_owned(),
+//!     true, // sync
 //! )?;
 //! let backend2 = PersistentBackend::load(persister2);
 //! # Ok(())
@@ -77,6 +80,8 @@ pub struct SledPersister {
     document_tree: sled::Tree,
     sync_states_tree: sled::Tree,
     prefix: String,
+    /// Whether to flush the tree after changes.
+    flush: bool,
     sizes: StoredSizes,
 }
 
@@ -96,12 +101,14 @@ impl SledPersister {
         document_tree: sled::Tree,
         sync_states_tree: sled::Tree,
         prefix: String,
+        flush: bool,
     ) -> Result<Self, SledPersisterError> {
         let mut s = Self {
             changes_tree,
             document_tree,
             sync_states_tree,
             prefix,
+            flush,
             sizes: StoredSizes::default(),
         };
         s.sizes.changes = s.get_changes()?.iter().map(Vec::len).sum();
@@ -160,6 +167,9 @@ impl Persister for SledPersister {
                 self.sizes.changes -= old.len();
             }
         }
+        if self.flush {
+            self.changes_tree.flush()?;
+        }
         Ok(())
     }
 
@@ -170,6 +180,9 @@ impl Persister for SledPersister {
             if let Some(old) = self.changes_tree.remove(key)? {
                 self.sizes.changes -= old.len();
             }
+        }
+        if self.flush {
+            self.changes_tree.flush()?;
         }
         Ok(())
     }
@@ -186,6 +199,9 @@ impl Persister for SledPersister {
     fn set_document(&mut self, data: Vec<u8>) -> Result<(), Self::Error> {
         self.sizes.document = data.len();
         self.document_tree.insert(self.make_document_key(), data)?;
+        if self.flush {
+            self.document_tree.flush()?;
+        }
         Ok(())
     }
 
@@ -203,6 +219,9 @@ impl Persister for SledPersister {
         if let Some(old) = self.sync_states_tree.insert(sync_state_key, sync_state)? {
             self.sizes.sync_states -= old.len();
         }
+        if self.flush {
+            self.sync_states_tree.flush()?;
+        }
         Ok(())
     }
 
@@ -212,6 +231,9 @@ impl Persister for SledPersister {
             if let Some(old) = self.sync_states_tree.remove(key)? {
                 self.sizes.sync_states -= old.len();
             }
+        }
+        if self.flush {
+            self.sync_states_tree.flush()?;
         }
         Ok(())
     }
