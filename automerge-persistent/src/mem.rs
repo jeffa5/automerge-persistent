@@ -85,4 +85,8 @@ impl Persister for MemoryPersister {
     fn sizes(&self) -> StoredSizes {
         self.sizes.clone()
     }
+
+    fn flush(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
 }

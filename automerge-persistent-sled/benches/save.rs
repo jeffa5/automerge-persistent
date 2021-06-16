@@ -12,7 +12,6 @@ fn small_backend_apply_local_change(c: &mut Criterion) {
                     db.open_tree("document").unwrap(),
                     db.open_tree("sync_states").unwrap(),
                     "".to_owned(),
-                    true,
                 )
                 .unwrap();
                 let backend: PersistentBackend<
@@ -49,7 +48,6 @@ fn small_backend_apply_local_change_flush(c: &mut Criterion) {
                     db.open_tree("document").unwrap(),
                     db.open_tree("sync_states").unwrap(),
                     "".to_owned(),
-                    true,
                 )
                 .unwrap();
                 let backend: PersistentBackend<
@@ -89,7 +87,6 @@ fn small_backend_apply_changes(c: &mut Criterion) {
                     db.open_tree("document").unwrap(),
                     db.open_tree("sync_states").unwrap(),
                     "".to_owned(),
-                    true,
                 )
                 .unwrap();
                 let mut other_backend = automerge::Backend::new();
@@ -132,7 +129,6 @@ fn small_backend_compact(c: &mut Criterion) {
                     db.open_tree("document").unwrap(),
                     db.open_tree("sync_states").unwrap(),
                     "".to_owned(),
-                    true,
                 )
                 .unwrap();
                 let mut backend: PersistentBackend<

@@ -60,4 +60,7 @@ pub trait Persister {
     ///
     /// This can be used as an indicator of when to compact the storage.
     fn sizes(&self) -> StoredSizes;
+
+    /// Flush the data out to disk.
+    fn flush(&mut self) -> Result<(), Self::Error>;
 }

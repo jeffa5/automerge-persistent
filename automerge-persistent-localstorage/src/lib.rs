@@ -208,6 +208,10 @@ impl Persister for LocalStoragePersister {
     fn sizes(&self) -> StoredSizes {
         self.sizes.clone()
     }
+
+    fn flush(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
 }
 
 /// Make a key from the `actor_id` and `sequence_number`.

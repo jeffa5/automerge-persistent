@@ -160,7 +160,7 @@ where
         &mut self,
         change: automerge_protocol::Change,
     ) -> Result<Patch, Error<P::Error, B::Error>> {
-        let (patch, change) = self
+        let (patch, _) = self
             .backend
             .apply_local_change(change)
             .map_err(Error::BackendError)?;
@@ -357,5 +357,17 @@ where
             )
             .map_err(Error::PersisterError)?;
         Ok(patch)
+    }
+
+    /// Flush any data out to storage.
+    ///
+    /// # Errors
+    ///
+    /// Returns the error returned by the persister during flushing.
+    pub fn flush(&mut self) -> Result<(), P::Error> {
+        self.persister
+            .lock()
+            .expect("Failed to acquire persister lock")
+            .flush()
     }
 }
