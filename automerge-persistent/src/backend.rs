@@ -2,7 +2,7 @@ use std::error::Error;
 
 use automerge::Change;
 use automerge_backend::{EventHandler, EventHandlerId, SyncMessage, SyncState};
-use automerge_protocol::{ActorId, ChangeHash, Patch, UncompressedChange};
+use automerge_protocol::{ActorId, ChangeHash, Patch};
 
 pub trait Backend: Sized + Default {
     type Error: Error;
@@ -15,7 +15,7 @@ pub trait Backend: Sized + Default {
 
     fn apply_local_change(
         &mut self,
-        change: UncompressedChange,
+        change: automerge_protocol::Change,
     ) -> Result<(Patch, Change), Self::Error>;
 
     fn get_changes(&self, have_deps: &[ChangeHash]) -> Vec<&Change>;
@@ -59,7 +59,7 @@ impl Backend for automerge::Backend {
 
     fn apply_local_change(
         &mut self,
-        change: UncompressedChange,
+        change: automerge_protocol::Change,
     ) -> Result<(Patch, Change), Self::Error> {
         self.apply_local_change(change)
     }

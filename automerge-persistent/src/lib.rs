@@ -35,7 +35,7 @@ use std::{
 
 use automerge::Change;
 use automerge_backend::{AutomergeError, ChangeEventHandler, EventHandler, SyncMessage, SyncState};
-use automerge_protocol::{ActorId, ChangeHash, Patch, UncompressedChange};
+use automerge_protocol::{ActorId, ChangeHash, Patch};
 pub use backend::Backend;
 pub use mem::MemoryPersister;
 pub use persister::Persister;
@@ -168,7 +168,7 @@ where
     /// Apply a local change, typically from a local frontend.
     pub fn apply_local_change(
         &mut self,
-        change: UncompressedChange,
+        change: automerge_protocol::Change,
     ) -> Result<Patch, Error<P::Error, B::Error>> {
         let (patch, change) = self
             .backend
