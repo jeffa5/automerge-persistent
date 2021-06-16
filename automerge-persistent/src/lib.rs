@@ -150,16 +150,6 @@ where
         &mut self,
         changes: Vec<Change>,
     ) -> Result<Patch, Error<P::Error, B::Error>> {
-        self.persister
-            .lock()
-            .expect("Failed to acquire persister lock")
-            .insert_changes(
-                changes
-                    .iter()
-                    .map(|c| (c.actor_id().clone(), c.seq, c.raw_bytes().to_vec()))
-                    .collect(),
-            )
-            .map_err(Error::PersisterError)?;
         self.backend
             .apply_changes(changes)
             .map_err(Error::BackendError)
@@ -174,15 +164,6 @@ where
             .backend
             .apply_local_change(change)
             .map_err(Error::BackendError)?;
-        self.persister
-            .lock()
-            .expect("Failed to acquire persister lock")
-            .insert_changes(vec![(
-                change.actor_id().clone(),
-                change.seq,
-                change.raw_bytes().to_vec(),
-            )])
-            .map_err(Error::PersisterError)?;
         Ok(patch)
     }
 
