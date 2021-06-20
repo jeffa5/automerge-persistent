@@ -23,7 +23,7 @@ fn small_backend_apply_local_change(c: &mut Criterion) {
                     .change::<_, _, InvalidChangeRequest>(None, |doc| {
                         doc.add_change(LocalChange::set(
                             Path::root().key("a"),
-                            Value::Primitive(Primitive::Str("abcdef".to_owned())),
+                            Value::Primitive(Primitive::Str("abcdef".into())),
                         ))
                         .unwrap();
                         Ok(())
@@ -59,7 +59,7 @@ fn small_backend_apply_local_change_flush(c: &mut Criterion) {
                     .change::<_, _, InvalidChangeRequest>(None, |doc| {
                         doc.add_change(LocalChange::set(
                             Path::root().key("a"),
-                            Value::Primitive(Primitive::Str("abcdef".to_owned())),
+                            Value::Primitive(Primitive::Str("abcdef".into())),
                         ))
                         .unwrap();
                         Ok(())
@@ -99,7 +99,7 @@ fn small_backend_apply_changes(c: &mut Criterion) {
                     .change::<_, _, InvalidChangeRequest>(None, |doc| {
                         doc.add_change(LocalChange::set(
                             Path::root().key("a"),
-                            Value::Primitive(Primitive::Str("abcdef".to_owned())),
+                            Value::Primitive(Primitive::Str("abcdef".into())),
                         ))
                         .unwrap();
                         Ok(())
@@ -140,7 +140,7 @@ fn small_backend_compact(c: &mut Criterion) {
                     .change::<_, _, InvalidChangeRequest>(None, |doc| {
                         doc.add_change(LocalChange::set(
                             Path::root().key("a"),
-                            Value::Primitive(Primitive::Str("abcdef".to_owned())),
+                            Value::Primitive(Primitive::Str("abcdef".into())),
                         ))
                         .unwrap();
                         Ok(())
