@@ -105,6 +105,7 @@ impl LocalStoragePersister {
     }
 }
 
+#[async_trait::async_trait]
 impl Persister for LocalStoragePersister {
     type Error = LocalStoragePersisterError;
 
@@ -210,6 +211,10 @@ impl Persister for LocalStoragePersister {
     }
 
     fn flush(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    async fn flush_async(&mut self) -> Result<(), Self::Error> {
         Ok(())
     }
 }

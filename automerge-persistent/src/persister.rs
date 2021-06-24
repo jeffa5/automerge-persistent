@@ -13,6 +13,7 @@ use crate::StoredSizes;
 /// change and so is suitable for use as a key in the implementation.
 ///
 /// Documents are saved automerge Backends so are more compact than the raw changes they represent.
+#[async_trait::async_trait]
 pub trait Persister {
     /// The error type that the operations can produce
     type Error: Error + 'static;
@@ -63,4 +64,7 @@ pub trait Persister {
 
     /// Flush the data out to disk.
     fn flush(&mut self) -> Result<(), Self::Error>;
+
+    /// Flush the data out to disk.
+    async fn flush_async(&mut self) -> Result<(), Self::Error>;
 }

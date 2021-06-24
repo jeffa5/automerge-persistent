@@ -65,6 +65,7 @@
 
 use automerge_persistent::{Persister, StoredSizes};
 use automerge_protocol::ActorId;
+use futures::try_join;
 
 /// The key to use to store the document in the document tree
 const DOCUMENT_KEY: &[u8] = b"document";
@@ -142,6 +143,7 @@ impl SledPersister {
     }
 }
 
+#[async_trait::async_trait]
 impl Persister for SledPersister {
     type Error = SledPersisterError;
 
@@ -235,6 +237,14 @@ impl Persister for SledPersister {
         self.changes_tree.flush()?;
         self.document_tree.flush()?;
         self.sync_states_tree.flush()?;
+        Ok(())
+    }
+
+    async fn flush_async(&mut self) -> Result<(), Self::Error> {
+        let c = self.changes_tree.flush_async();
+        let d = self.document_tree.flush_async();
+        let s = self.sync_states_tree.flush_async();
+        try_join![c, d, s]?;
         Ok(())
     }
 }

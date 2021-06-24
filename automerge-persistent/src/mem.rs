@@ -16,6 +16,7 @@ pub struct MemoryPersister {
     sizes: StoredSizes,
 }
 
+#[async_trait::async_trait]
 impl Persister for MemoryPersister {
     type Error = std::convert::Infallible;
 
@@ -87,6 +88,10 @@ impl Persister for MemoryPersister {
     }
 
     fn flush(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    async fn flush_async(&mut self) -> Result<(), Self::Error> {
         Ok(())
     }
 }

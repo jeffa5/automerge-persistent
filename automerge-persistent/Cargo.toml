@@ -9,3 +9,4 @@ automerge = { git = "https://github.com/automerge/automerge-rs", branch = "main"
 automerge-protocol = { git = "https://github.com/automerge/automerge-rs", branch = "main" }
 automerge-backend = { git = "https://github.com/automerge/automerge-rs", branch = "main" }
 thiserror = "1.0.24"
+async-trait = "0.1.50"
