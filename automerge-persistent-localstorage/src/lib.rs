@@ -105,7 +105,7 @@ impl LocalStoragePersister {
     }
 }
 
-#[async_trait::async_trait]
+#[async_trait::async_trait(?Send)]
 impl Persister for LocalStoragePersister {
     type Error = LocalStoragePersisterError;
 

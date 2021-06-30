@@ -16,7 +16,7 @@ pub struct MemoryPersister {
     sizes: StoredSizes,
 }
 
-#[async_trait::async_trait]
+#[async_trait::async_trait(?Send)]
 impl Persister for MemoryPersister {
     type Error = std::convert::Infallible;
 

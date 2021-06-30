@@ -13,7 +13,7 @@ use crate::StoredSizes;
 /// change and so is suitable for use as a key in the implementation.
 ///
 /// Documents are saved automerge Backends so are more compact than the raw changes they represent.
-#[async_trait::async_trait]
+#[async_trait::async_trait(?Send)]
 pub trait Persister {
     /// The error type that the operations can produce
     type Error: Error + 'static;

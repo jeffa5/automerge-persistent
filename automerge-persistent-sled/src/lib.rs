@@ -143,7 +143,7 @@ impl SledPersister {
     }
 }
 
-#[async_trait::async_trait]
+#[async_trait::async_trait(?Send)]
 impl Persister for SledPersister {
     type Error = SledPersisterError;
 
