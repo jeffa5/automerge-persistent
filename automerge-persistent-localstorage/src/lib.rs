@@ -9,7 +9,8 @@
 //! ```rust,no_run
 //! # use automerge_persistent_localstorage::{LocalStoragePersister, LocalStoragePersisterError};
 //! # use automerge_persistent::PersistentBackend;
-//! # fn main() -> Result<(), LocalStoragePersisterError> {
+//! # fn main() -> Result<(), automerge_persistent::Error<LocalStoragePersisterError,
+//! automerge_backend::AutomergeError>> {
 //! let storage = web_sys::window()
 //!     .unwrap()
 //!     .local_storage()
@@ -17,7 +18,7 @@
 //!     .unwrap();
 //!
 //! let persister = LocalStoragePersister::new(storage, "document".to_owned(), "changes".to_owned(), "sync-states".to_owned())?;
-//! let backend = PersistentBackend::load(persister);
+//! let backend = PersistentBackend::<_, automerge::Backend>::load(persister)?;
 //! # Ok(())
 //! # }
 //! ```
@@ -53,6 +54,16 @@ pub enum LocalStoragePersisterError {
     /// An underlying storage error.
     #[error("storage error {0:?}")]
     StorageError(wasm_bindgen::JsValue),
+}
+
+impl<B> From<LocalStoragePersisterError>
+    for automerge_persistent::Error<LocalStoragePersisterError, B>
+where
+    B: std::error::Error + 'static,
+{
+    fn from(e: LocalStoragePersisterError) -> Self {
+        Self::PersisterError(e)
+    }
 }
 
 impl LocalStoragePersister {

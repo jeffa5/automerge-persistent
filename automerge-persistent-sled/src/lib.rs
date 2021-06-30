@@ -12,20 +12,20 @@
 //! # use automerge_persistent::PersistentBackend;
 //! # use automerge_persistent_sled::SledPersister;
 //! # use automerge_persistent_sled::SledPersisterError;
-//! # fn main() -> Result<(), SledPersisterError> {
-//! let db = sled::Config::new().temporary(true).open()?;
-//! let changes_tree = db.open_tree("changes")?;
-//! let documents_tree = db.open_tree("documents")?;
-//! let sync_states_tree = db.open_tree("sync-states")?;
+//! # fn main() -> Result<(), automerge_persistent::Error<SledPersisterError,
+//! automerge_backend::AutomergeError>> {
+//! let db = sled::Config::new().temporary(true).open().map_err(SledPersisterError::SledError)?;
+//! let changes_tree = db.open_tree("changes").map_err(SledPersisterError::SledError)?;
+//! let documents_tree = db.open_tree("documents").map_err(SledPersisterError::SledError)?;
+//! let sync_states_tree = db.open_tree("sync-states").map_err(SledPersisterError::SledError)?;
 //!
 //! let persister = SledPersister::new(
 //!     changes_tree,
 //!     documents_tree,
 //!     sync_states_tree,
 //!     String::new(),
-//!     true, // sync
 //! )?;
-//! let backend = PersistentBackend::load(persister);
+//! let backend = PersistentBackend::<_, automerge::Backend>::load(persister)?;
 //! # Ok(())
 //! # }
 //! ```
@@ -36,29 +36,28 @@
 //! # use automerge_persistent::PersistentBackend;
 //! # use automerge_persistent_sled::SledPersister;
 //! # use automerge_persistent_sled::SledPersisterError;
-//! # fn main() -> Result<(), SledPersisterError> {
-//! let db = sled::Config::new().temporary(true).open()?;
-//! let changes_tree = db.open_tree("changes")?;
-//! let documents_tree = db.open_tree("documents")?;
-//! let sync_states_tree = db.open_tree("sync-states")?;
+//! # fn main() -> Result<(), automerge_persistent::Error<SledPersisterError,
+//! automerge_backend::AutomergeError>> {
+//! let db = sled::Config::new().temporary(true).open().map_err(SledPersisterError::SledError)?;
+//! let changes_tree = db.open_tree("changes").map_err(SledPersisterError::SledError)?;
+//! let documents_tree = db.open_tree("documents").map_err(SledPersisterError::SledError)?;
+//! let sync_states_tree = db.open_tree("sync-states").map_err(SledPersisterError::SledError)?;
 //!
 //! let persister1 = SledPersister::new(
 //!     changes_tree.clone(),
 //!     documents_tree.clone(),
 //!     sync_states_tree.clone(),
 //!     "1".to_owned(),
-//!     true, // sync
 //! )?;
-//! let backend1 = PersistentBackend::load(persister1);
+//! let backend1 = PersistentBackend::<_, automerge::Backend>::load(persister1)?;
 //!
 //! let persister2 = SledPersister::new(
 //!     changes_tree,
 //!     documents_tree,
 //!     sync_states_tree,
 //!     "2".to_owned(),
-//!     true, // sync
 //! )?;
-//! let backend2 = PersistentBackend::load(persister2);
+//! let backend2 = PersistentBackend::<_, automerge::Backend>::load(persister2)?;
 //! # Ok(())
 //! # }
 //! ```
@@ -90,6 +89,15 @@ pub enum SledPersisterError {
     /// Internal errors from sled.
     #[error(transparent)]
     SledError(#[from] sled::Error),
+}
+
+impl<B> From<SledPersisterError> for automerge_persistent::Error<SledPersisterError, B>
+where
+    B: std::error::Error + 'static,
+{
+    fn from(e: SledPersisterError) -> Self {
+        Self::PersisterError(e)
+    }
 }
 
 impl SledPersister {

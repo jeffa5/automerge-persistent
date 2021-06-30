@@ -27,13 +27,7 @@ mod backend;
 mod mem;
 mod persister;
 
-use std::{
-    cell::RefCell,
-    collections::HashMap,
-    fmt::Debug,
-    rc::Rc,
-    sync::{Arc, Mutex},
-};
+use std::{cell::RefCell, collections::HashMap, fmt::Debug, rc::Rc};
 
 use automerge::Change;
 use automerge_backend::{AutomergeError, ChangeEventHandler, EventHandler, SyncMessage, SyncState};
