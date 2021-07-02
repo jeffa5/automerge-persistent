@@ -38,7 +38,7 @@ use automerge_protocol::ActorId;
 pub struct LocalStoragePersister {
     storage: web_sys::Storage,
     changes: HashMap<String, Vec<u8>>,
-    sync_states: HashMap<Vec<u8>, Vec<u8>>,
+    sync_states: HashMap<String, Vec<u8>>,
     document_key: String,
     changes_key: String,
     sync_states_key: String,
@@ -181,12 +181,12 @@ impl Persister for LocalStoragePersister {
     }
 
     fn get_sync_state(&self, peer_id: &[u8]) -> Result<Option<Vec<u8>>, Self::Error> {
-        Ok(self.sync_states.get(peer_id).cloned())
+        Ok(self.sync_states.get(&hex::encode(peer_id)).cloned())
     }
 
     fn set_sync_state(&mut self, peer_id: Vec<u8>, sync_state: Vec<u8>) -> Result<(), Self::Error> {
         self.sizes.sync_states += sync_state.len();
-        if let Some(old) = self.sync_states.insert(peer_id, sync_state) {
+        if let Some(old) = self.sync_states.insert(hex::encode(peer_id), sync_state) {
             self.sizes.sync_states -= old.len();
         }
         self.storage
@@ -200,7 +200,7 @@ impl Persister for LocalStoragePersister {
 
     fn remove_sync_states(&mut self, peer_ids: &[&[u8]]) -> Result<(), Self::Error> {
         for id in peer_ids {
-            if let Some(old) = self.sync_states.remove(*id) {
+            if let Some(old) = self.sync_states.remove(&hex::encode(id)) {
                 self.sizes.sync_states -= old.len();
             }
         }
@@ -214,7 +214,11 @@ impl Persister for LocalStoragePersister {
     }
 
     fn get_peer_ids(&self) -> Result<Vec<Vec<u8>>, Self::Error> {
-        Ok(self.sync_states.keys().cloned().collect())
+        Ok(self
+            .sync_states
+            .keys()
+            .map(|pid| hex::decode(pid).unwrap())
+            .collect())
     }
 
     fn sizes(&self) -> StoredSizes {
