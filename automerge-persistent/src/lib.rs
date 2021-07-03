@@ -79,9 +79,21 @@ pub struct PersistentBackend<P: Persister + Debug, B: Backend> {
     persister: Arc<Mutex<P>>,
 }
 
+#[cfg(feature = "send")]
+pub trait PersisterForBackend: Persister + Debug + 'static + Send {}
+
+#[cfg(feature = "send")]
+impl<T> PersisterForBackend for T where T: Persister + Debug + 'static + Send {}
+
+#[cfg(not(feature = "send"))]
+pub trait PersisterForBackend: Persister + Debug + 'static {}
+
+#[cfg(not(feature = "send"))]
+impl<T> PersisterForBackend for T where T: Persister + Debug + 'static {}
+
 impl<P, B> PersistentBackend<P, B>
 where
-    P: Persister + Debug + 'static,
+    P: PersisterForBackend,
     B: Backend,
 {
     /// Load the persisted changes (both individual changes and a document) from storage and
