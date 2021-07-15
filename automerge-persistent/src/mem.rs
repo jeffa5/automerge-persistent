@@ -16,7 +16,7 @@ pub struct MemoryPersister {
     sizes: StoredSizes,
 }
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 impl Persister for MemoryPersister {
     type Error = std::convert::Infallible;
 
@@ -26,7 +26,10 @@ impl Persister for MemoryPersister {
     }
 
     /// Insert changes into the map.
-    fn insert_changes(&mut self, changes: Vec<(ActorId, u64, Vec<u8>)>) -> Result<(), Self::Error> {
+    fn insert_changes<I>(&mut self, changes: I) -> Result<(), Self::Error>
+    where
+        I: IntoIterator<Item = (ActorId, u64, Vec<u8>)>,
+    {
         for (a, u, c) in changes {
             self.sizes.changes += c.len();
             if let Some(old) = self.changes.insert((a, u), c) {
@@ -37,7 +40,10 @@ impl Persister for MemoryPersister {
     }
 
     /// Remove changes from the map.
-    fn remove_changes(&mut self, changes: Vec<(&ActorId, u64)>) -> Result<(), Self::Error> {
+    fn remove_changes<'a, I>(&mut self, changes: I) -> Result<(), Self::Error>
+    where
+        I: IntoIterator<Item = (&'a ActorId, u64)>,
+    {
         for (a, u) in changes {
             if let Some(old) = self.changes.remove(&(a.clone(), u)) {
                 self.sizes.changes -= old.len();
@@ -88,10 +94,6 @@ impl Persister for MemoryPersister {
     }
 
     fn flush(&mut self) -> Result<(), Self::Error> {
-        Ok(())
-    }
-
-    async fn flush_async(&mut self) -> Result<(), Self::Error> {
         Ok(())
     }
 }

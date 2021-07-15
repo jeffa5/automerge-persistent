@@ -64,7 +64,6 @@
 
 use automerge_persistent::{Persister, StoredSizes};
 use automerge_protocol::ActorId;
-use futures::try_join;
 
 /// The key to use to store the document in the document tree
 const DOCUMENT_KEY: &[u8] = b"document";
@@ -133,7 +132,7 @@ impl SledPersister {
     /// Converts the `actor_id` to bytes and appends the `sequence_number` in big endian form.
     fn make_key(&self, actor_id: &ActorId, seq: u64) -> Vec<u8> {
         let mut key = self.prefix.as_bytes().to_vec();
-        key.extend(&actor_id.to_bytes());
+        key.extend(actor_id.to_bytes());
         key.extend(&seq.to_be_bytes());
         key
     }
@@ -151,7 +150,7 @@ impl SledPersister {
     }
 }
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 impl Persister for SledPersister {
     type Error = SledPersisterError;
 
@@ -165,7 +164,10 @@ impl Persister for SledPersister {
     }
 
     /// Insert all of the given changes into the tree.
-    fn insert_changes(&mut self, changes: Vec<(ActorId, u64, Vec<u8>)>) -> Result<(), Self::Error> {
+    fn insert_changes<I>(&mut self, changes: I) -> Result<(), Self::Error>
+    where
+        I: IntoIterator<Item = (ActorId, u64, Vec<u8>)>,
+    {
         for (a, s, c) in changes {
             let key = self.make_key(&a, s);
             self.sizes.changes += c.len();
@@ -177,7 +179,10 @@ impl Persister for SledPersister {
     }
 
     /// Remove all of the given changes from the tree.
-    fn remove_changes(&mut self, changes: Vec<(&ActorId, u64)>) -> Result<(), Self::Error> {
+    fn remove_changes<'a, I>(&mut self, changes: I) -> Result<(), Self::Error>
+    where
+        I: IntoIterator<Item = (&'a ActorId, u64)>,
+    {
         for (a, s) in changes {
             let key = self.make_key(a, s);
             if let Some(old) = self.changes_tree.remove(key)? {
@@ -245,14 +250,6 @@ impl Persister for SledPersister {
         self.changes_tree.flush()?;
         self.document_tree.flush()?;
         self.sync_states_tree.flush()?;
-        Ok(())
-    }
-
-    async fn flush_async(&mut self) -> Result<(), Self::Error> {
-        let c = self.changes_tree.flush_async();
-        let d = self.document_tree.flush_async();
-        let s = self.sync_states_tree.flush_async();
-        try_join![c, d, s]?;
         Ok(())
     }
 }

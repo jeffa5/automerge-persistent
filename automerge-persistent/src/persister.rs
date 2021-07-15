@@ -13,7 +13,7 @@ use crate::StoredSizes;
 /// change and so is suitable for use as a key in the implementation.
 ///
 /// Documents are saved automerge Backends so are more compact than the raw changes they represent.
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 pub trait Persister {
     /// The error type that the operations can produce
     type Error: Error + 'static;
@@ -23,12 +23,16 @@ pub trait Persister {
     fn get_changes(&self) -> Result<Vec<Vec<u8>>, Self::Error>;
 
     /// Inserts the given change at the unique address specified by the `actor_id` and `sequence_number`.
-    fn insert_changes(&mut self, changes: Vec<(ActorId, u64, Vec<u8>)>) -> Result<(), Self::Error>;
+    fn insert_changes<I>(&mut self, changes: I) -> Result<(), Self::Error>
+    where
+        I: IntoIterator<Item = (ActorId, u64, Vec<u8>)>;
 
     /// Removes the change at the unique address specified by the `actor_id` and `sequence_number`.
     ///
     /// If the change does not exist this should not return an error.
-    fn remove_changes(&mut self, changes: Vec<(&ActorId, u64)>) -> Result<(), Self::Error>;
+    fn remove_changes<'a, I>(&mut self, changes: I) -> Result<(), Self::Error>
+    where
+        I: IntoIterator<Item = (&'a ActorId, u64)>;
 
     /// Returns the document, if one has been persisted previously.
     fn get_document(&self) -> Result<Option<Vec<u8>>, Self::Error>;
@@ -64,7 +68,4 @@ pub trait Persister {
 
     /// Flush the data out to disk.
     fn flush(&mut self) -> Result<(), Self::Error>;
-
-    /// Flush the data out to disk.
-    async fn flush_async(&mut self) -> Result<(), Self::Error>;
 }

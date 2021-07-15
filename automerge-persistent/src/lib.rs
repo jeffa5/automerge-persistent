@@ -27,14 +27,10 @@ mod backend;
 mod mem;
 mod persister;
 
-use std::{
-    collections::HashMap,
-    fmt::Debug,
-    sync::{Arc, Mutex},
-};
+use std::{collections::HashMap, fmt::Debug};
 
 use automerge::Change;
-use automerge_backend::{AutomergeError, ChangeEventHandler, EventHandler, SyncMessage, SyncState};
+use automerge_backend::{AutomergeError, SyncMessage, SyncState};
 use automerge_protocol::{ActorId, ChangeHash, Patch};
 pub use backend::Backend;
 pub use mem::MemoryPersister;
@@ -76,26 +72,33 @@ type PeerId = Vec<u8>;
 pub struct PersistentBackend<P: Persister + Debug, B: Backend> {
     backend: B,
     sync_states: HashMap<PeerId, SyncState>,
-    persister: Arc<Mutex<P>>,
+    persister: P,
 }
-
-#[cfg(feature = "send")]
-pub trait PersisterForBackend: Persister + Debug + 'static + Send {}
-
-#[cfg(feature = "send")]
-impl<T> PersisterForBackend for T where T: Persister + Debug + 'static + Send {}
-
-#[cfg(not(feature = "send"))]
-pub trait PersisterForBackend: Persister + Debug + 'static {}
-
-#[cfg(not(feature = "send"))]
-impl<T> PersisterForBackend for T where T: Persister + Debug + 'static {}
 
 impl<P, B> PersistentBackend<P, B>
 where
-    P: PersisterForBackend,
+    P: Persister + Debug,
     B: Backend,
 {
+    fn with_catch_changes<F, O>(&mut self, f: F) -> Result<O, Error<P::Error, B::Error>>
+    where
+        F: FnOnce(&mut Self) -> Result<O, B::Error>,
+    {
+        let heads = self.backend.get_heads();
+        let res = f(self).map_err(Error::BackendError)?;
+        let new_changes = self.backend.get_changes(&heads);
+        if !new_changes.is_empty() {
+            self.persister
+                .insert_changes(
+                    new_changes
+                        .into_iter()
+                        .map(|c| (c.actor_id().clone(), c.seq, c.raw_bytes().to_owned())),
+                )
+                .unwrap();
+        }
+        Ok(res)
+    }
+
     /// Load the persisted changes (both individual changes and a document) from storage and
     /// rebuild the Backend.
     ///
@@ -114,23 +117,6 @@ where
         };
 
         let change_bytes = persister.get_changes().map_err(Error::PersisterError)?;
-
-        let persister = Arc::new(Mutex::new(persister));
-        let persister_clone = persister.clone();
-
-        backend.add_event_handler(EventHandler::BeforeApplyChange(ChangeEventHandler(
-            Box::new(move |change| {
-                persister_clone
-                    .lock()
-                    .unwrap()
-                    .insert_changes(vec![(
-                        change.actor_id().clone(),
-                        change.seq,
-                        change.raw_bytes().to_vec(),
-                    )])
-                    .unwrap();
-            }),
-        )));
 
         let mut changes = Vec::new();
         for change_bytes in change_bytes {
@@ -162,9 +148,7 @@ where
         &mut self,
         changes: Vec<Change>,
     ) -> Result<Patch, Error<P::Error, B::Error>> {
-        self.backend
-            .apply_changes(changes)
-            .map_err(Error::BackendError)
+        self.with_catch_changes(|s| s.backend.apply_changes(changes))
     }
 
     /// Apply a local change, typically from a local frontend.
@@ -172,11 +156,7 @@ where
         &mut self,
         change: automerge_protocol::Change,
     ) -> Result<Patch, Error<P::Error, B::Error>> {
-        let (patch, _) = self
-            .backend
-            .apply_local_change(change)
-            .map_err(Error::BackendError)?;
-        Ok(patch)
+        self.with_catch_changes(|s| s.backend.apply_local_change(change).map(|(patch, _)| patch))
     }
 
     /// Compact the storage.
@@ -197,14 +177,13 @@ where
     pub fn compact(&mut self, old_peer_ids: &[&[u8]]) -> Result<(), Error<P::Error, B::Error>> {
         let changes = self.backend.get_changes(&[]);
         let saved_backend = self.backend.save().map_err(Error::BackendError)?;
-        let mut persister = self.persister.lock().unwrap();
-        persister
+        self.persister
             .set_document(saved_backend)
             .map_err(Error::PersisterError)?;
-        persister
-            .remove_changes(changes.into_iter().map(|c| (c.actor_id(), c.seq)).collect())
+        self.persister
+            .remove_changes(changes.into_iter().map(|c| (c.actor_id(), c.seq)))
             .map_err(Error::PersisterError)?;
-        persister
+        self.persister
             .remove_sync_states(old_peer_ids)
             .map_err(Error::PersisterError)?;
         Ok(())
@@ -297,8 +276,6 @@ where
         if !self.sync_states.contains_key(&peer_id) {
             if let Some(sync_state) = self
                 .persister
-                .lock()
-                .unwrap()
                 .get_sync_state(&peer_id)
                 .map_err(Error::PersisterError)?
             {
@@ -313,8 +290,6 @@ where
             .generate_sync_message(sync_state)
             .map_err(Error::BackendError)?;
         self.persister
-            .lock()
-            .unwrap()
             .set_sync_state(
                 peer_id,
                 sync_state
@@ -340,8 +315,6 @@ where
         if !self.sync_states.contains_key(&peer_id) {
             if let Some(sync_state) = self
                 .persister
-                .lock()
-                .unwrap()
                 .get_sync_state(&peer_id)
                 .map_err(Error::PersisterError)?
             {
@@ -351,13 +324,24 @@ where
             }
         }
         let sync_state = self.sync_states.entry(peer_id.clone()).or_default();
+
+        let heads = self.backend.get_heads();
         let patch = self
             .backend
             .receive_sync_message(sync_state, message)
             .map_err(Error::BackendError)?;
+        let new_changes = self.backend.get_changes(&heads);
+        if !new_changes.is_empty() {
+            self.persister
+                .insert_changes(
+                    new_changes
+                        .into_iter()
+                        .map(|c| (c.actor_id().clone(), c.seq, c.raw_bytes().to_owned())),
+                )
+                .map_err(Error::PersisterError)?;
+        }
+
         self.persister
-            .lock()
-            .unwrap()
             .set_sync_state(
                 peer_id,
                 sync_state
@@ -374,6 +358,6 @@ where
     ///
     /// Returns the error returned by the persister during flushing.
     pub fn flush(&mut self) -> Result<(), P::Error> {
-        self.persister.lock().unwrap().flush()
+        self.persister.flush()
     }
 }

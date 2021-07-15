@@ -116,7 +116,7 @@ impl LocalStoragePersister {
     }
 }
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 impl Persister for LocalStoragePersister {
     type Error = LocalStoragePersisterError;
 
@@ -124,7 +124,10 @@ impl Persister for LocalStoragePersister {
         Ok(self.changes.values().cloned().collect())
     }
 
-    fn insert_changes(&mut self, changes: Vec<(ActorId, u64, Vec<u8>)>) -> Result<(), Self::Error> {
+    fn insert_changes<I>(&mut self, changes: I) -> Result<(), Self::Error>
+    where
+        I: IntoIterator<Item = (ActorId, u64, Vec<u8>)>,
+    {
         for (a, s, c) in changes {
             let key = make_key(&a, s);
 
@@ -139,7 +142,10 @@ impl Persister for LocalStoragePersister {
         Ok(())
     }
 
-    fn remove_changes(&mut self, changes: Vec<(&ActorId, u64)>) -> Result<(), Self::Error> {
+    fn remove_changes<'a, I>(&mut self, changes: I) -> Result<(), Self::Error>
+    where
+        I: IntoIterator<Item = (&'a ActorId, u64)>,
+    {
         let mut some_removal = false;
         for (a, s) in changes {
             let key = make_key(a, s);
@@ -226,10 +232,6 @@ impl Persister for LocalStoragePersister {
     }
 
     fn flush(&mut self) -> Result<(), Self::Error> {
-        Ok(())
-    }
-
-    async fn flush_async(&mut self) -> Result<(), Self::Error> {
         Ok(())
     }
 }
