@@ -352,6 +352,14 @@ where
         Ok(patch)
     }
 
+    /// Reset the sync state for a peer.
+    ///
+    /// This is typically used when a peer disconnects, we need to reset the sync state for them as
+    /// they may come back up with different state.
+    pub fn reset_sync_state(&mut self, peer_id: &[u8]) {
+        self.sync_states.remove(peer_id);
+    }
+
     /// Flush any data out to storage.
     ///
     /// # Errors
