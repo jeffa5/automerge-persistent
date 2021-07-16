@@ -285,10 +285,16 @@ where
             }
         }
         let sync_state = self.sync_states.entry(peer_id.clone()).or_default();
+
+        dbg!(&sync_state);
+
         let message = self
             .backend
             .generate_sync_message(sync_state)
             .map_err(Error::BackendError)?;
+
+        dbg!(&sync_state);
+
         self.persister
             .set_sync_state(
                 peer_id,
@@ -325,11 +331,16 @@ where
         }
         let sync_state = self.sync_states.entry(peer_id.clone()).or_default();
 
+        dbg!(&sync_state);
+
         let heads = self.backend.get_heads();
         let patch = self
             .backend
             .receive_sync_message(sync_state, message)
             .map_err(Error::BackendError)?;
+
+        dbg!(&sync_state);
+
         let new_changes = self.backend.get_changes(&heads);
         if !new_changes.is_empty() {
             self.persister
