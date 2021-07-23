@@ -2,5 +2,6 @@
 members = [
   "automerge-persistent",
   "automerge-persistent-sled",
+  "automerge-persistent-rocksdb",
   "automerge-persistent-localstorage",
 ]

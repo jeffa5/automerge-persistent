@@ -1,0 +1,13 @@
+[package]
+name = "automerge-persistent-rocksdb"
+version = "0.1.0"
+authors = ["Andrew Jeffery <dev@jeffas.io>"]
+edition = "2018"
+
+[dependencies]
+automerge = { git = "https://github.com/automerge/automerge-rs", branch = "main" }
+automerge-protocol = { git = "https://github.com/automerge/automerge-rs", branch = "main" }
+automerge-persistent = { path = "../automerge-persistent" }
+rocksdb = "0.17.0"
+thiserror = "1.0.24"
+async-trait = "0.1.50"
