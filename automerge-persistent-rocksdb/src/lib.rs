@@ -29,7 +29,7 @@
 //! # }
 //! ```
 //!
-//! # Multiple persisters sharing the same trees
+//! # Multiple persisters sharing the same db through a mutex
 //!
 //! ```rust
 //! # use automerge_persistent::PersistentBackend;
@@ -69,11 +69,11 @@ use automerge_protocol::ActorId;
 /// The key to use to store the document in the document tree
 const DOCUMENT_KEY: &[u8] = b"document";
 
-/// The persister that stores changes and documents in rocksdb trees.
+/// The persister that stores changes and documents in rocksdb.
 ///
-/// Changes and documents are kept in separate trees.
+/// Changes and documents are kept under separate prefixes.
 ///
-/// An optional prefix can be used in case multiple persisters may share the same trees.
+/// An optional prefix can be used in case multiple persisters may share the same db.
 #[derive(Debug)]
 pub struct RocksDbPersister {
     db: Arc<Mutex<rocksdb::DB>>,
@@ -174,7 +174,7 @@ impl Persister for RocksDbPersister {
             .collect())
     }
 
-    /// Insert all of the given changes into the tree.
+    /// Insert all of the given changes into the db.
     fn insert_changes<I>(&mut self, changes: I) -> Result<(), Self::Error>
     where
         I: IntoIterator<Item = (ActorId, u64, Vec<u8>)>,
@@ -191,7 +191,7 @@ impl Persister for RocksDbPersister {
         Ok(())
     }
 
-    /// Remove all of the given changes from the tree.
+    /// Remove all of the given changes from the db.
     fn remove_changes<'a, I>(&mut self, changes: I) -> Result<(), Self::Error>
     where
         I: IntoIterator<Item = (&'a ActorId, u64)>,
@@ -207,12 +207,12 @@ impl Persister for RocksDbPersister {
         Ok(())
     }
 
-    /// Retrieve the document from the tree.
+    /// Retrieve the document from the db.
     fn get_document(&self) -> Result<Option<Vec<u8>>, Self::Error> {
         Ok(self.db.lock().unwrap().get(self.make_document_key())?)
     }
 
-    /// Set the document in the tree.
+    /// Set the document in the db.
     fn set_document(&mut self, data: Vec<u8>) -> Result<(), Self::Error> {
         self.sizes.document = data.len();
         self.db
