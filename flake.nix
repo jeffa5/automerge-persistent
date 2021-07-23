@@ -45,9 +45,16 @@
               wasm-pack
               nodejs
 
+              # for rocksdb
+              # llvm
+              clang
+
               rnix-lsp
               nixpkgs-fmt
             ];
+
+            # for rocksdb
+            LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
           };
         }
       );
