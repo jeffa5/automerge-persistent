@@ -124,7 +124,7 @@ impl SledPersister {
     /// Converts the `actor_id` to bytes and appends the `sequence_number` in big endian form.
     fn make_key(&self, actor_id: &ActorId, seq: u64) -> Vec<u8> {
         let mut key = self.prefix.as_bytes().to_vec();
-        key.extend(&actor_id.to_bytes());
+        key.extend(actor_id.to_bytes());
         key.extend(&seq.to_be_bytes());
         key
     }

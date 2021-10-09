@@ -16,7 +16,7 @@ pub trait Backend: Sized + Default {
     fn apply_local_change(
         &mut self,
         change: automerge_protocol::Change,
-    ) -> Result<(Patch, Change), Self::Error>;
+    ) -> Result<(Patch, &Change), Self::Error>;
 
     fn get_changes(&self, have_deps: &[ChangeHash]) -> Vec<&Change>;
 
@@ -60,7 +60,7 @@ impl Backend for automerge::Backend {
     fn apply_local_change(
         &mut self,
         change: automerge_protocol::Change,
-    ) -> Result<(Patch, Change), Self::Error> {
+    ) -> Result<(Patch, &Change), Self::Error> {
         self.apply_local_change(change)
     }
 
