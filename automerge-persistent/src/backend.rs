@@ -31,7 +31,7 @@ pub trait Backend: Sized + Default {
     fn get_heads(&self) -> Vec<ChangeHash>;
 
     fn generate_sync_message(
-        &mut self,
+        &self,
         sync_state: &mut SyncState,
     ) -> Result<Option<SyncMessage>, Self::Error>;
 
@@ -89,7 +89,7 @@ impl Backend for automerge::Backend {
     }
 
     fn generate_sync_message(
-        &mut self,
+        &self,
         sync_state: &mut SyncState,
     ) -> Result<Option<SyncMessage>, Self::Error> {
         Ok(Self::generate_sync_message(self, sync_state))
