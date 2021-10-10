@@ -49,11 +49,7 @@ pub struct StoredSizes {
 
 /// Errors that persistent backends can return.
 #[derive(Debug, thiserror::Error)]
-pub enum Error<E, B>
-where
-    E: std::error::Error + 'static,
-    B: std::error::Error + 'static,
-{
+pub enum Error<E, B> {
     /// An internal backend error.
     #[error(transparent)]
     BackendError(B),
@@ -85,7 +81,7 @@ where
         F: FnOnce(&mut Self) -> Result<O, B::Error>,
     {
         let heads = self.backend.get_heads();
-        let res = f(self).map_err(|e| Error::BackendError(e))?;
+        let res = f(self).map_err(Error::BackendError)?;
         let changes = self.backend.get_changes(&heads);
         self.persister
             .insert_changes(
