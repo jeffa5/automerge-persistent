@@ -73,7 +73,7 @@ type PeerId = Vec<u8>;
 
 /// A wrapper for a persister and an automerge Backend.
 #[derive(Debug)]
-pub struct PersistentBackend<P: Persister + Debug, B: Backend> {
+pub struct PersistentBackend<P, B> {
     backend: B,
     sync_states: HashMap<PeerId, SyncState>,
     persister: Arc<Mutex<P>>,
@@ -81,7 +81,7 @@ pub struct PersistentBackend<P: Persister + Debug, B: Backend> {
 
 impl<P, B> PersistentBackend<P, B>
 where
-    P: Persister + Debug + Send + 'static,
+    P: Persister + Send + 'static,
     B: Backend,
 {
     /// Load the persisted changes (both individual changes and a document) from storage and
