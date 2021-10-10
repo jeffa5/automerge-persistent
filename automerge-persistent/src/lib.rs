@@ -24,6 +24,7 @@
 //! ```
 
 mod backend;
+mod document;
 mod mem;
 mod persister;
 
@@ -33,6 +34,7 @@ use automerge::Change;
 use automerge_backend::{AutomergeError, SyncMessage, SyncState};
 use automerge_protocol::{ActorId, ChangeHash, Patch};
 pub use backend::Backend;
+pub use document::{Error as PersistentAutomergeError, PersistentAutomerge};
 pub use mem::MemoryPersister;
 pub use persister::Persister;
 
