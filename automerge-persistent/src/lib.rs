@@ -51,7 +51,7 @@ pub struct StoredSizes {
 #[derive(Debug, thiserror::Error)]
 pub enum Error<E, B>
 where
-    E: Debug + std::error::Error + 'static,
+    E: std::error::Error + 'static,
     B: std::error::Error + 'static,
 {
     /// An internal backend error.
