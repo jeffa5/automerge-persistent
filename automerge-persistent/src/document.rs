@@ -310,4 +310,16 @@ where
     pub fn flush(&mut self) -> Result<(), P::Error> {
         self.persister.flush()
     }
+
+    /// Close the document.
+    ///
+    /// This calls flush on the persister and returns it for potential use in other documents.
+    ///
+    /// # Errors
+    ///
+    /// Returns the error from flushing.
+    pub fn close(mut self) -> Result<P, P::Error> {
+        self.flush()?;
+        Ok(self.persister)
+    }
 }
