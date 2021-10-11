@@ -322,4 +322,9 @@ where
         self.flush()?;
         Ok(self.persister)
     }
+
+    /// Obtain a reference to the persister.
+    pub fn persister(&self) -> &P {
+        &self.persister
+    }
 }
