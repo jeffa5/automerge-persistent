@@ -1,7 +1,8 @@
 use std::{collections::HashMap, fmt::Debug};
 
 use automerge::{
-    value_ref::RootRef, Automerge, AutomergeError, Change, MutableDocument, Path, Value,
+    value_ref::RootRef, Automerge, AutomergeBuilder, AutomergeError, Backend, Change, Frontend,
+    MutableDocument, Path, Value,
 };
 use automerge_backend::{SyncMessage, SyncState};
 use automerge_protocol::{ChangeHash, OpId};
@@ -51,6 +52,40 @@ where
             Automerge::load(document).map_err(Error::AutomergeError)?
         } else {
             Automerge::default()
+        };
+
+        let change_bytes = persister.get_changes().map_err(Error::PersisterError)?;
+
+        let mut changes = Vec::new();
+        for change_bytes in change_bytes {
+            changes.push(
+                Change::from_bytes(change_bytes)
+                    .map_err(|e| Error::AutomergeError(AutomergeError::BackendError(e.into())))?,
+            );
+        }
+
+        automerge
+            .apply_changes(changes)
+            .map_err(Error::AutomergeError)?;
+        Ok(Self {
+            automerge,
+            sync_states: HashMap::new(),
+            persister,
+        })
+    }
+
+    pub fn load_with_frontend(persister: P, frontend: Frontend) -> Result<Self, Error<P::Error>> {
+        let document = persister.get_document().map_err(Error::PersisterError)?;
+        let mut automerge = if let Some(document) = document {
+            AutomergeBuilder::default()
+                .with_frontend(frontend)
+                .with_backend(
+                    Backend::load(document)
+                        .map_err(|e| Error::AutomergeError(AutomergeError::BackendError(e)))?,
+                )
+                .build()
+        } else {
+            AutomergeBuilder::default().with_frontend(frontend).build()
         };
 
         let change_bytes = persister.get_changes().map_err(Error::PersisterError)?;
