@@ -66,9 +66,6 @@
 use automerge_persistent::{Persister, StoredSizes};
 use automerge_protocol::ActorId;
 
-/// The key to use to store the document in the document tree
-const DOCUMENT_KEY: &[u8] = b"document";
-
 /// The persister that stores changes and documents in sled trees.
 ///
 /// Changes and documents are kept in separate trees.
@@ -94,12 +91,17 @@ pub enum SledPersisterError {
 impl SledPersister {
     /// Construct a new persister.
     #[must_use]
-    pub fn new(
+    pub fn new<S>(
         changes_tree: sled::Tree,
         document_tree: sled::Tree,
         sync_states_tree: sled::Tree,
-        prefix: String,
-    ) -> Result<Self, SledPersisterError> {
+        prefix: S,
+    ) -> Result<Self, SledPersisterError>
+    where
+        S: Into<String>,
+    {
+        let prefix = prefix.into();
+
         let mut s = Self {
             changes_tree,
             document_tree,
@@ -129,10 +131,10 @@ impl SledPersister {
         key
     }
 
+    /// Make a key just from the prefix.
+    /// Since each document only has one thing to store in this tree we can just use the prefix.
     fn make_document_key(&self) -> Vec<u8> {
-        let mut key = self.prefix.as_bytes().to_vec();
-        key.extend(DOCUMENT_KEY);
-        key
+        self.prefix.as_bytes().to_vec()
     }
 
     fn make_peer_key(&self, peer_id: &[u8]) -> Vec<u8> {
