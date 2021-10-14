@@ -90,8 +90,6 @@ pub enum SledPersisterError {
 
 impl SledPersister {
     /// Construct a new persister.
-    ///
-    /// If the given prefix is empty then a default one is used.
     #[must_use]
     pub fn new<S>(
         changes_tree: sled::Tree,
