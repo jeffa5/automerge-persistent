@@ -12,20 +12,15 @@
 //! # use automerge_persistent::PersistentBackend;
 //! # use automerge_persistent_sled::SledPersister;
 //! # use automerge_persistent_sled::SledPersisterError;
+//! # use automerge::Backend;
 //! # fn main() -> Result<(), SledPersisterError> {
 //! let db = sled::Config::new().temporary(true).open()?;
 //! let changes_tree = db.open_tree("changes")?;
 //! let documents_tree = db.open_tree("documents")?;
 //! let sync_states_tree = db.open_tree("sync-states")?;
 //!
-//! let persister = SledPersister::new(
-//!     changes_tree,
-//!     documents_tree,
-//!     sync_states_tree,
-//!     String::new(),
-//!     true, // sync
-//! )?;
-//! let backend = PersistentBackend::load(persister);
+//! let persister = SledPersister::new(changes_tree, documents_tree, sync_states_tree, "")?;
+//! let backend = PersistentBackend::<_, Backend>::load(persister);
 //! # Ok(())
 //! # }
 //! ```
@@ -36,6 +31,7 @@
 //! # use automerge_persistent::PersistentBackend;
 //! # use automerge_persistent_sled::SledPersister;
 //! # use automerge_persistent_sled::SledPersisterError;
+//! # use automerge::Backend;
 //! # fn main() -> Result<(), SledPersisterError> {
 //! let db = sled::Config::new().temporary(true).open()?;
 //! let changes_tree = db.open_tree("changes")?;
@@ -46,19 +42,12 @@
 //!     changes_tree.clone(),
 //!     documents_tree.clone(),
 //!     sync_states_tree.clone(),
-//!     "1".to_owned(),
-//!     true, // sync
+//!     "1",
 //! )?;
-//! let backend1 = PersistentBackend::load(persister1);
+//! let backend1 = PersistentBackend::<_, Backend>::load(persister1);
 //!
-//! let persister2 = SledPersister::new(
-//!     changes_tree,
-//!     documents_tree,
-//!     sync_states_tree,
-//!     "2".to_owned(),
-//!     true, // sync
-//! )?;
-//! let backend2 = PersistentBackend::load(persister2);
+//! let persister2 = SledPersister::new(changes_tree, documents_tree, sync_states_tree, "2")?;
+//! let backend2 = PersistentBackend::<_, Backend>::load(persister2);
 //! # Ok(())
 //! # }
 //! ```
