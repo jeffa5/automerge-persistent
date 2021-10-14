@@ -131,6 +131,8 @@ impl SledPersister {
         key
     }
 
+    /// Make a key just from the prefix.
+    /// Since each document only has one thing to store in this tree we can just use the prefix.
     fn make_document_key(&self) -> Vec<u8> {
         self.prefix.as_bytes().to_vec()
     }
