@@ -95,6 +95,25 @@ where
             .map_err(Error::PersisterError)?;
         Ok(res)
     }
+
+    /// Returns a serialized version of the current document
+    /// 
+    /// # Errors
+    /// 
+    /// Returns the errors returned from [`Backend::save`]
+    /// 
+    /// ```rust
+    /// # use automerge_persistent::MemoryPersister;
+    /// # use automerge_persistent::PersistentBackend;
+    /// let persister = MemoryPersister::default();
+    /// let backend = PersistentBackend::<_, automerge::Backend>::load(persister).unwrap();
+    /// let data = backend.save().unwrap();
+    /// 
+    /// ```
+    pub fn save(&self) -> Result<Vec<u8>, B::Error> {
+        self.backend.save()
+    }
+
     /// Load the persisted changes (both individual changes and a document) from storage and
     /// rebuild the Backend.
     ///
