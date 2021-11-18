@@ -368,12 +368,12 @@ where
         Ok(patch)
     }
 
-    /// Flush any data out to storage.
+    /// Flush any data out to storage returning the number of bytes flushed.
     ///
     /// # Errors
     ///
     /// Returns the error returned by the persister during flushing.
-    pub fn flush(&mut self) -> Result<(), P::Error> {
+    pub fn flush(&mut self) -> Result<usize, P::Error> {
         self.persister.flush()
     }
 

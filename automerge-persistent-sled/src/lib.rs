@@ -222,10 +222,11 @@ impl Persister for SledPersister {
         self.sizes.clone()
     }
 
-    fn flush(&mut self) -> Result<(), Self::Error> {
-        self.changes_tree.flush()?;
-        self.document_tree.flush()?;
-        self.sync_states_tree.flush()?;
-        Ok(())
+    fn flush(&mut self) -> Result<usize, Self::Error> {
+        let mut flushed = 0;
+        flushed += self.changes_tree.flush()?;
+        flushed += self.document_tree.flush()?;
+        flushed += self.sync_states_tree.flush()?;
+        Ok(flushed)
     }
 }

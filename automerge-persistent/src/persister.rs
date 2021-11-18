@@ -62,5 +62,5 @@ pub trait Persister {
     fn sizes(&self) -> StoredSizes;
 
     /// Flush the data out to disk.
-    fn flush(&mut self) -> Result<(), Self::Error>;
+    fn flush(&mut self) -> Result<usize, Self::Error>;
 }
