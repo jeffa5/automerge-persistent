@@ -355,7 +355,7 @@ where
                     .map(|c| (c.actor_id().clone(), c.seq, c.raw_bytes().to_vec()))
                     .collect(),
             )
-            .unwrap();
+            .map_err(Error::PersisterError)?;
 
         self.persister
             .set_sync_state(
