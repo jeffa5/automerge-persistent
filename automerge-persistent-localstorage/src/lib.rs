@@ -38,7 +38,8 @@ use automerge_protocol::ActorId;
 pub struct LocalStoragePersister {
     storage: web_sys::Storage,
     changes: HashMap<String, Vec<u8>>,
-    sync_states: HashMap<Vec<u8>, Vec<u8>>,
+    /// Base64 encoded peer_ids are used for the keys so they can be serialized to json.
+    sync_states: HashMap<String, Vec<u8>>,
     document_key: String,
     changes_key: String,
     sync_states_key: String,
@@ -134,7 +135,7 @@ impl Persister for LocalStoragePersister {
             let key = make_key(a, s);
             if let Some(old) = self.changes.remove(&key) {
                 self.sizes.changes -= old.len();
-                some_removal = true
+                some_removal = true;
             }
         }
 
@@ -170,11 +171,13 @@ impl Persister for LocalStoragePersister {
     }
 
     fn get_sync_state(&self, peer_id: &[u8]) -> Result<Option<Vec<u8>>, Self::Error> {
-        Ok(self.sync_states.get(peer_id).cloned())
+        let peer_id = base64::encode(peer_id);
+        Ok(self.sync_states.get(&peer_id).cloned())
     }
 
     fn set_sync_state(&mut self, peer_id: Vec<u8>, sync_state: Vec<u8>) -> Result<(), Self::Error> {
         self.sizes.sync_states += sync_state.len();
+        let peer_id = base64::encode(peer_id);
         if let Some(old) = self.sync_states.insert(peer_id, sync_state) {
             self.sizes.sync_states -= old.len();
         }
@@ -188,8 +191,9 @@ impl Persister for LocalStoragePersister {
     }
 
     fn remove_sync_states(&mut self, peer_ids: &[&[u8]]) -> Result<(), Self::Error> {
-        for id in peer_ids {
-            if let Some(old) = self.sync_states.remove(*id) {
+        for peer_id in peer_ids {
+            let peer_id = base64::encode(peer_id);
+            if let Some(old) = self.sync_states.remove(&peer_id) {
                 self.sizes.sync_states -= old.len();
             }
         }
@@ -203,7 +207,11 @@ impl Persister for LocalStoragePersister {
     }
 
     fn get_peer_ids(&self) -> Result<Vec<Vec<u8>>, Self::Error> {
-        Ok(self.sync_states.keys().cloned().collect())
+        Ok(self
+            .sync_states
+            .keys()
+            .map(|key| base64::decode(key).expect("Failed to base64 decode they peer_id"))
+            .collect())
     }
 
     fn sizes(&self) -> StoredSizes {
