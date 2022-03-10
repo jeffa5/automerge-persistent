@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use automerge_protocol::ActorId;
+use automerge::ActorId;
 
 use crate::StoredSizes;
 

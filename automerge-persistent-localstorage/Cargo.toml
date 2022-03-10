@@ -5,8 +5,7 @@ authors = ["Andrew Jeffery <dev@jeffas.io>"]
 edition = "2018"
 
 [dependencies]
-automerge = { git = "https://github.com/automerge/automerge-rs", branch = "main" }
-automerge-protocol = { git = "https://github.com/automerge/automerge-rs", branch = "main" }
+automerge = { git = "https://github.com/automerge/automerge-rs", branch = "experiment" }
 automerge-persistent = { path = "../automerge-persistent" }
 web-sys = { version = "0.3.50", features = ["Storage"] }
 serde = "1.0.125"
