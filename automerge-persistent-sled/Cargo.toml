@@ -5,7 +5,7 @@ authors = ["Andrew Jeffery <dev@jeffas.io>"]
 edition = "2018"
 
 [dependencies]
-automerge = { git = "https://github.com/automerge/automerge-rs", branch = "experiment" }
+automerge = { git = "https://github.com/automerge/automerge-rs", branch = "main" }
 automerge-persistent = { path = "../automerge-persistent" }
 sled = "0.34.6"
 thiserror = "1.0.24"
