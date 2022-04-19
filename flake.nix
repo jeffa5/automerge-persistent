@@ -15,7 +15,7 @@
             overlays = [ rust-overlay.overlay ];
             system = system;
           };
-          rust = pkgs.rust-bin.nightly.latest.rust;
+          rust = pkgs.rust-bin.stable.latest.default;
           cargoNix = pkgs.callPackage ./Cargo.nix { };
         in
         rec

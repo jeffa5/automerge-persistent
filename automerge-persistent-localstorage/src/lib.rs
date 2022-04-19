@@ -25,8 +25,8 @@
 
 use std::collections::HashMap;
 
+use automerge::ActorId;
 use automerge_persistent::{Persister, StoredSizes};
-use automerge_protocol::ActorId;
 
 /// Persist changes and documents in to `LocalStorage`.
 ///

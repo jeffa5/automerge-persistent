@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use automerge_protocol::ActorId;
+use automerge::ActorId;
 
 use crate::{Persister, StoredSizes};
 

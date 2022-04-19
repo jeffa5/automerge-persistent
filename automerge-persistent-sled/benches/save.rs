@@ -1,5 +1,5 @@
-use automerge::{InvalidChangeRequest, LocalChange, Path, Primitive, Value};
-use automerge_persistent::PersistentBackend;
+use automerge::{transaction::Transactable, ROOT};
+use automerge_persistent::PersistentAutomerge;
 use criterion::{criterion_group, criterion_main, Criterion};
 
 fn small_backend_apply_local_change(c: &mut Criterion) {
@@ -14,25 +14,20 @@ fn small_backend_apply_local_change(c: &mut Criterion) {
                     "".to_owned(),
                 )
                 .unwrap();
-                let backend: PersistentBackend<
-                    automerge_persistent_sled::SledPersister,
-                    automerge::Backend,
-                > = automerge_persistent::PersistentBackend::load(sled).unwrap();
-                let mut frontend = automerge::Frontend::new();
-                let ((), change) = frontend
-                    .change::<_, _, InvalidChangeRequest>(None, |doc| {
-                        doc.add_change(LocalChange::set(
-                            Path::root().key("a"),
-                            Value::Primitive(Primitive::Str("abcdef".into())),
-                        ))
-                        .unwrap();
-                        Ok(())
-                    })
-                    .unwrap();
+                let mut doc: PersistentAutomerge<automerge_persistent_sled::SledPersister> =
+                    automerge_persistent::PersistentAutomerge::load(sled).unwrap();
+                doc.transact::<_, _, std::convert::Infallible>(|doc| {
+                    doc.set(ROOT, "a", "abcdef").unwrap();
+                    Ok(())
+                })
+                .unwrap();
+                let change = doc.document().get_last_local_change().cloned();
 
-                (backend, change.unwrap())
+                (doc, change.unwrap())
             },
-            |(mut persistent_doc, change)| persistent_doc.apply_local_change(change),
+            |(mut persistent_doc, change)| {
+                persistent_doc.document_mut().apply_changes(vec![change])
+            },
             criterion::BatchSize::SmallInput,
         )
     });
@@ -50,26 +45,22 @@ fn small_backend_apply_local_change_flush(c: &mut Criterion) {
                     "".to_owned(),
                 )
                 .unwrap();
-                let backend: PersistentBackend<
-                    automerge_persistent_sled::SledPersister,
-                    automerge::Backend,
-                > = automerge_persistent::PersistentBackend::load(sled).unwrap();
-                let mut frontend = automerge::Frontend::new();
-                let ((), change) = frontend
-                    .change::<_, _, InvalidChangeRequest>(None, |doc| {
-                        doc.add_change(LocalChange::set(
-                            Path::root().key("a"),
-                            Value::Primitive(Primitive::Str("abcdef".into())),
-                        ))
-                        .unwrap();
-                        Ok(())
-                    })
-                    .unwrap();
+                let mut doc: PersistentAutomerge<automerge_persistent_sled::SledPersister> =
+                    automerge_persistent::PersistentAutomerge::load(sled).unwrap();
+                doc.transact::<_, _, std::convert::Infallible>(|doc| {
+                    doc.set(ROOT, "a", "abcdef").unwrap();
+                    Ok(())
+                })
+                .unwrap();
+                let change = doc.document().get_last_local_change().cloned();
 
-                (db, backend, change.unwrap())
+                (db, doc, change.unwrap())
             },
             |(db, mut persistent_doc, change)| {
-                persistent_doc.apply_local_change(change).unwrap();
+                persistent_doc
+                    .document_mut()
+                    .apply_changes(vec![change])
+                    .unwrap();
                 db.flush().unwrap()
             },
             criterion::BatchSize::SmallInput,
@@ -89,31 +80,22 @@ fn small_backend_apply_changes(c: &mut Criterion) {
                     "".to_owned(),
                 )
                 .unwrap();
-                let mut other_backend = automerge::Backend::new();
-                let backend: PersistentBackend<
-                    automerge_persistent_sled::SledPersister,
-                    automerge::Backend,
-                > = automerge_persistent::PersistentBackend::load(sled).unwrap();
-                let mut frontend = automerge::Frontend::new();
-                let ((), change) = frontend
-                    .change::<_, _, InvalidChangeRequest>(None, |doc| {
-                        doc.add_change(LocalChange::set(
-                            Path::root().key("a"),
-                            Value::Primitive(Primitive::Str("abcdef".into())),
-                        ))
-                        .unwrap();
-                        Ok(())
-                    })
-                    .unwrap();
-                let (_patch, _change) = other_backend.apply_local_change(change.unwrap()).unwrap();
+                let other_backend = automerge::Automerge::new();
+                let mut doc: PersistentAutomerge<automerge_persistent_sled::SledPersister> =
+                    automerge_persistent::PersistentAutomerge::load(sled).unwrap();
+                doc.transact::<_, _, std::convert::Infallible>(|doc| {
+                    doc.set(ROOT, "a", "abcdef").unwrap();
+                    Ok(())
+                })
+                .unwrap();
                 let changes = other_backend
                     .get_changes(&[])
                     .into_iter()
                     .cloned()
                     .collect();
-                (backend, changes)
+                (doc, changes)
             },
-            |(mut persistent_doc, changes)| persistent_doc.apply_changes(changes),
+            |(mut persistent_doc, changes)| persistent_doc.document_mut().apply_changes(changes),
             criterion::BatchSize::SmallInput,
         )
     });
@@ -131,23 +113,14 @@ fn small_backend_compact(c: &mut Criterion) {
                     "".to_owned(),
                 )
                 .unwrap();
-                let mut backend: PersistentBackend<
-                    automerge_persistent_sled::SledPersister,
-                    automerge::Backend,
-                > = automerge_persistent::PersistentBackend::load(sled).unwrap();
-                let mut frontend = automerge::Frontend::new();
-                let ((), change) = frontend
-                    .change::<_, _, InvalidChangeRequest>(None, |doc| {
-                        doc.add_change(LocalChange::set(
-                            Path::root().key("a"),
-                            Value::Primitive(Primitive::Str("abcdef".into())),
-                        ))
-                        .unwrap();
-                        Ok(())
-                    })
-                    .unwrap();
-                let _patch = backend.apply_local_change(change.unwrap()).unwrap();
-                backend
+                let mut doc: PersistentAutomerge<automerge_persistent_sled::SledPersister> =
+                    automerge_persistent::PersistentAutomerge::load(sled).unwrap();
+                doc.transact::<_, _, std::convert::Infallible>(|doc| {
+                    doc.set(ROOT, "a", "abcdef").unwrap();
+                    Ok(())
+                })
+                .unwrap();
+                doc
             },
             |mut persistent_doc| persistent_doc.compact(&[]),
             criterion::BatchSize::SmallInput,
