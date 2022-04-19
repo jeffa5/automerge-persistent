@@ -31,7 +31,7 @@ use std::{collections::HashMap, fmt::Debug};
 use automerge::{
     sync,
     transaction::{self, Transaction},
-    Automerge, AutomergeError, Change,
+    ApplyOptions, Automerge, AutomergeError, Change, OpObserver,
 };
 pub use mem::MemoryPersister;
 pub use persister::Persister;
@@ -214,6 +214,22 @@ where
         peer_id: PeerId,
         message: sync::Message,
     ) -> Result<(), Error<P::Error>> {
+        self.receive_sync_message_with(peer_id, message, ApplyOptions::<()>::default())
+    }
+
+    /// Receive a sync message from a peer backend.
+    ///
+    /// Peer id is intentionally low level and up to the user as it can be a DNS name, IP address or
+    /// something else.
+    ///
+    /// This internally retrieves the previous sync state from storage and saves the new one
+    /// afterwards.
+    pub fn receive_sync_message_with<Obs: OpObserver>(
+        &mut self,
+        peer_id: PeerId,
+        message: sync::Message,
+        options: ApplyOptions<Obs>,
+    ) -> Result<(), Error<P::Error>> {
         if !self.sync_states.contains_key(&peer_id) {
             if let Some(sync_state) = self
                 .persister
@@ -230,7 +246,7 @@ where
         let heads = self.document.get_heads();
         let patch = self
             .document
-            .receive_sync_message(sync_state, message)
+            .receive_sync_message_with(sync_state, message, options)
             .map_err(Error::AutomergeError)?;
         let changes = self.document.get_changes(&heads);
         self.persister
