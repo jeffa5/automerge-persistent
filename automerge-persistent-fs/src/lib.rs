@@ -7,6 +7,7 @@ use std::{
 
 use automerge::ActorId;
 use automerge_persistent::{Persister, StoredSizes};
+#[cfg(feature = "async")]
 use futures::{Future, FutureExt, TryStreamExt};
 use hex::FromHexError;
 
@@ -57,6 +58,7 @@ impl FsPersisterCache {
         Ok(flushed)
     }
 
+    #[cfg(feature = "async")]
     async fn flush_changes(&mut self, changes_path: PathBuf) -> Result<usize, std::io::Error> {
         let futs = futures::stream::FuturesUnordered::new();
         for ((a, s), c) in self.changes.drain() {
@@ -69,6 +71,7 @@ impl FsPersisterCache {
         Ok(res?.iter().sum())
     }
 
+    #[cfg(feature = "async")]
     async fn flush_document(&mut self, doc_path: PathBuf) -> Result<usize, std::io::Error> {
         let mut flushed = 0;
         if let Some(data) = self.document.take() {
@@ -78,6 +81,7 @@ impl FsPersisterCache {
         Ok(flushed)
     }
 
+    #[cfg(feature = "async")]
     async fn flush_sync_states(
         &mut self,
         sync_states_path: PathBuf,
@@ -94,6 +98,7 @@ impl FsPersisterCache {
         Ok(res?.iter().sum())
     }
 
+    #[cfg(feature = "async")]
     pub async fn flush(
         &mut self,
         doc_path: PathBuf,
@@ -187,6 +192,7 @@ impl FsPersister {
         Ok(s)
     }
 
+    #[cfg(feature = "async")]
     pub fn flush_cache(&mut self) -> impl Future<Output = Result<usize, std::io::Error>> {
         let doc_path = self.doc_path.clone();
         let changes_path = self.changes_path.clone();
