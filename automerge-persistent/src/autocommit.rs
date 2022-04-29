@@ -1,102 +1,38 @@
-// #![warn(missing_docs)]
-#![warn(missing_crate_level_docs)]
-#![warn(missing_doc_code_examples)]
-// #![warn(clippy::pedantic)]
-#![warn(clippy::nursery)]
+use std::collections::HashMap;
 
-//! A library for constructing efficient persistent automerge documents.
-//!
-//! A [`PersistentBackend`] wraps an [`automerge::Backend`] and handles making the changes applied
-//! to it durable. This works by persisting every change before it is applied to the backend. Then
-//! occasionally the user should call `compact` to save the backend in a more compact format and
-//! cleanup the included changes. This strategy aims to be fast while also being space efficient
-//! (up to the user's requirements).
-//!
-//! ```rust
-//! # use automerge_persistent::MemoryPersister;
-//! # use automerge_persistent::PersistentBackend;
-//! # fn main() -> Result<(), automerge_persistent::Error<std::convert::Infallible,
-//! automerge_backend::AutomergeError>> {
-//! let persister = MemoryPersister::default();
-//! let backend = PersistentBackend::<_, automerge::Backend>::load(persister)?;
-//! # Ok(())
-//! # }
-//! ```
-
-mod autocommit;
-mod mem;
-mod persister;
-
-use std::{collections::HashMap, fmt::Debug};
-
-pub use autocommit::PersistentAutoCommit;
-use automerge::{
-    sync,
-    transaction::{self, Transaction},
-    ApplyOptions, Automerge, AutomergeError, Change, OpObserver,
-};
-pub use mem::MemoryPersister;
-pub use persister::Persister;
-
-/// Bytes stored for each of the stored types.
-#[derive(Debug, Default, Clone)]
-pub struct StoredSizes {
-    /// Total bytes stored for all changes.
-    pub changes: usize,
-    /// Total bytes stored in the document.
-    pub document: usize,
-    /// Total bytes stored for all sync states.
-    pub sync_states: usize,
-}
-
-/// Errors that persistent backends can return.
-#[derive(Debug, thiserror::Error)]
-pub enum Error<E> {
-    /// An automerge error.
-    #[error(transparent)]
-    AutomergeError(#[from] AutomergeError),
-    /// A persister error.
-    #[error(transparent)]
-    PersisterError(E),
-}
-
-type PeerId = Vec<u8>;
+use crate::{Error, PeerId, Persister};
+use automerge::{sync, ApplyOptions, AutoCommit, Change, ChangeHash, OpObserver};
 
 /// A wrapper for a persister and an automerge document.
 #[derive(Debug)]
-pub struct PersistentAutomerge<P> {
-    document: Automerge,
+pub struct PersistentAutoCommit<P> {
+    document: AutoCommit,
     sync_states: HashMap<PeerId, sync::State>,
     persister: P,
+    saved_heads: Vec<ChangeHash>,
 }
 
-impl<P> PersistentAutomerge<P>
+impl<P> PersistentAutoCommit<P>
 where
     P: Persister + 'static,
 {
-    pub fn document(&self) -> &Automerge {
+    pub fn document(&self) -> &AutoCommit {
         &self.document
     }
 
-    pub fn document_mut(&mut self) -> &mut Automerge {
+    /// UNSAFE: this may lead to changes not being immediately persisted
+    pub fn document_mut(&mut self) -> &mut AutoCommit {
         &mut self.document
     }
 
-    pub fn transact<F: FnOnce(&mut Transaction) -> Result<O, E>, O, E>(
+    /// Make changes to the document but don't immediately persist changes.
+    pub fn transact<F: FnOnce(&mut AutoCommit) -> Result<O, E>, O, E>(
         &mut self,
         f: F,
-    ) -> transaction::Result<O, E> {
-        let result = self.document.transact(f)?;
-        if let Some(change) = self.document.get_last_local_change() {
-            // TODO: remove this unwrap and return the error
-            self.persister
-                .insert_changes(vec![(
-                    change.actor_id().clone(),
-                    change.seq,
-                    change.raw_bytes().to_vec(),
-                )])
-                .expect("Failed to save change from transaction");
-        }
+    ) -> Result<O, E> {
+        let result = f(&mut self.document)?;
+        // don't get the changes or anything as that will close the transaction, instead delay that
+        // until another operation such as save or receive_sync_message etc.
         Ok(result)
     }
 
@@ -112,9 +48,9 @@ where
     pub fn load(persister: P) -> Result<Self, Error<P::Error>> {
         let document = persister.get_document().map_err(Error::PersisterError)?;
         let mut backend = if let Some(document) = document {
-            Automerge::load(&document).map_err(Error::AutomergeError)?
+            AutoCommit::load(&document).map_err(Error::AutomergeError)?
         } else {
-            Automerge::default()
+            AutoCommit::default()
         };
 
         let change_bytes = persister.get_changes().map_err(Error::PersisterError)?;
@@ -129,10 +65,13 @@ where
         backend
             .apply_changes(changes)
             .map_err(Error::AutomergeError)?;
+
+        let saved_heads = backend.get_heads();
         Ok(Self {
             document: backend,
             sync_states: HashMap::new(),
             persister,
+            saved_heads,
         })
     }
 
@@ -153,6 +92,7 @@ where
     /// ```
     pub fn compact(&mut self, old_peer_ids: &[&[u8]]) -> Result<(), Error<P::Error>> {
         let saved_backend = self.document.save();
+        self.saved_heads = self.document.get_heads();
         let changes = self.document.get_changes(&[]);
         self.persister
             .set_document(saved_backend)
@@ -185,6 +125,8 @@ where
         &mut self,
         peer_id: PeerId,
     ) -> Result<Option<sync::Message>, Error<P::Error>> {
+        self.close_transaction()?;
+
         if !self.sync_states.contains_key(&peer_id) {
             if let Some(sync_state) = self
                 .persister
@@ -232,6 +174,8 @@ where
         message: sync::Message,
         options: ApplyOptions<Obs>,
     ) -> Result<(), Error<P::Error>> {
+        self.close_transaction()?;
+
         if !self.sync_states.contains_key(&peer_id) {
             if let Some(sync_state) = self
                 .persister
@@ -271,8 +215,25 @@ where
     /// # Errors
     ///
     /// Returns the error returned by the persister during flushing.
-    pub fn flush(&mut self) -> Result<usize, P::Error> {
-        self.persister.flush()
+    pub fn flush(&mut self) -> Result<usize, Error<P::Error>> {
+        self.close_transaction()?;
+        let bytes = self.persister.flush().map_err(Error::PersisterError)?;
+        Ok(bytes)
+    }
+
+    /// Close any current transaction and write out the changes to disk.
+    pub fn close_transaction(&mut self) -> Result<(), Error<P::Error>> {
+        for change in self.document.get_changes(&self.saved_heads) {
+            self.persister
+                .insert_changes(vec![(
+                    change.actor_id().clone(),
+                    change.seq,
+                    change.raw_bytes().to_vec(),
+                )])
+                .map_err(Error::PersisterError)?
+        }
+        self.saved_heads = self.document.get_heads();
+        Ok(())
     }
 
     /// Close the document.
@@ -282,7 +243,7 @@ where
     /// # Errors
     ///
     /// Returns the error from flushing.
-    pub fn close(mut self) -> Result<P, P::Error> {
+    pub fn close(mut self) -> Result<P, Error<P::Error>> {
         self.flush()?;
         Ok(self.persister)
     }
