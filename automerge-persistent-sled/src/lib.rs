@@ -98,15 +98,15 @@ impl SledPersister {
             prefix,
             sizes: StoredSizes::default(),
         };
-        s.sizes.changes = s.get_changes()?.iter().map(Vec::len).sum();
-        s.sizes.document = s.get_document()?.unwrap_or_default().len();
+        s.sizes.changes = s.get_changes()?.iter().map(Vec::len).sum::<usize>() as u64;
+        s.sizes.document = s.get_document()?.unwrap_or_default().len() as u64;
         s.sizes.sync_states = s
             .get_peer_ids()?
             .iter()
             .map(|id| s.get_sync_state(id).map(|o| o.unwrap_or_default().len()))
             .collect::<Result<Vec<usize>, _>>()?
             .iter()
-            .sum();
+            .sum::<usize>() as u64;
         Ok(s)
     }
 
@@ -149,9 +149,9 @@ impl Persister for SledPersister {
     fn insert_changes(&mut self, changes: Vec<(ActorId, u64, Vec<u8>)>) -> Result<(), Self::Error> {
         for (a, s, c) in changes {
             let key = self.make_key(&a, s);
-            self.sizes.changes += c.len();
+            self.sizes.changes += c.len() as u64;
             if let Some(old) = self.changes_tree.insert(key, c)? {
-                self.sizes.changes -= old.len();
+                self.sizes.changes -= old.len() as u64;
             }
         }
         Ok(())
@@ -162,7 +162,7 @@ impl Persister for SledPersister {
         for (a, s) in changes {
             let key = self.make_key(a, s);
             if let Some(old) = self.changes_tree.remove(key)? {
-                self.sizes.changes -= old.len();
+                self.sizes.changes -= old.len() as u64;
             }
         }
         Ok(())
@@ -178,7 +178,7 @@ impl Persister for SledPersister {
 
     /// Set the document in the tree.
     fn set_document(&mut self, data: Vec<u8>) -> Result<(), Self::Error> {
-        self.sizes.document = data.len();
+        self.sizes.document = data.len() as u64;
         self.document_tree.insert(self.make_document_key(), data)?;
         Ok(())
     }
@@ -193,9 +193,9 @@ impl Persister for SledPersister {
 
     fn set_sync_state(&mut self, peer_id: Vec<u8>, sync_state: Vec<u8>) -> Result<(), Self::Error> {
         let sync_state_key = self.make_peer_key(&peer_id);
-        self.sizes.sync_states += sync_state.len();
+        self.sizes.sync_states += sync_state.len() as u64;
         if let Some(old) = self.sync_states_tree.insert(sync_state_key, sync_state)? {
-            self.sizes.sync_states -= old.len();
+            self.sizes.sync_states -= old.len() as u64;
         }
         Ok(())
     }
@@ -204,7 +204,7 @@ impl Persister for SledPersister {
         for id in peer_ids {
             let key = self.make_peer_key(id);
             if let Some(old) = self.sync_states_tree.remove(key)? {
-                self.sizes.sync_states -= old.len();
+                self.sizes.sync_states -= old.len() as u64;
             }
         }
         Ok(())

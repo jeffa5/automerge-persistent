@@ -27,9 +27,9 @@ impl Persister for MemoryPersister {
     /// Insert changes into the map.
     fn insert_changes(&mut self, changes: Vec<(ActorId, u64, Vec<u8>)>) -> Result<(), Self::Error> {
         for (a, u, c) in changes {
-            self.sizes.changes += c.len();
+            self.sizes.changes += c.len() as u64;
             if let Some(old) = self.changes.insert((a, u), c) {
-                self.sizes.changes -= old.len();
+                self.sizes.changes -= old.len() as u64;
             }
         }
         Ok(())
@@ -39,7 +39,7 @@ impl Persister for MemoryPersister {
     fn remove_changes(&mut self, changes: Vec<(&ActorId, u64)>) -> Result<(), Self::Error> {
         for (a, u) in changes {
             if let Some(old) = self.changes.remove(&(a.clone(), u)) {
-                self.sizes.changes -= old.len();
+                self.sizes.changes -= old.len() as u64;
             }
         }
         Ok(())
@@ -52,7 +52,7 @@ impl Persister for MemoryPersister {
 
     /// Set the document.
     fn set_document(&mut self, data: Vec<u8>) -> Result<(), Self::Error> {
-        self.sizes.document = data.len();
+        self.sizes.document = data.len() as u64;
         self.document = Some(data);
         Ok(())
     }
@@ -62,9 +62,9 @@ impl Persister for MemoryPersister {
     }
 
     fn set_sync_state(&mut self, peer_id: Vec<u8>, sync_state: Vec<u8>) -> Result<(), Self::Error> {
-        self.sizes.sync_states += sync_state.len();
+        self.sizes.sync_states += sync_state.len() as u64;
         if let Some(old) = self.sync_states.insert(peer_id, sync_state) {
-            self.sizes.sync_states -= old.len();
+            self.sizes.sync_states -= old.len() as u64;
         }
         Ok(())
     }
@@ -72,7 +72,7 @@ impl Persister for MemoryPersister {
     fn remove_sync_states(&mut self, peer_ids: &[&[u8]]) -> Result<(), Self::Error> {
         for id in peer_ids {
             if let Some(old) = self.sync_states.remove(*id) {
-                self.sizes.sync_states -= old.len();
+                self.sizes.sync_states -= old.len() as u64;
             }
         }
         Ok(())

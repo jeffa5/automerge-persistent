@@ -91,9 +91,9 @@ impl LocalStoragePersister {
             None
         };
         let sizes = StoredSizes {
-            changes: changes.values().map(Vec::len).sum(),
-            document: document.unwrap_or_default().len(),
-            sync_states: sync_states.values().map(Vec::len).sum(),
+            changes: changes.values().map(Vec::len).sum::<usize>() as u64,
+            document: document.unwrap_or_default().len() as u64,
+            sync_states: sync_states.values().map(Vec::len).sum::<usize>() as u64,
         };
         Ok(Self {
             storage,
@@ -118,9 +118,9 @@ impl Persister for LocalStoragePersister {
         for (a, s, c) in changes {
             let key = make_key(&a, s);
 
-            self.sizes.changes += c.len();
+            self.sizes.changes += c.len() as u64;
             if let Some(old) = self.changes.insert(key, c) {
-                self.sizes.changes -= old.len();
+                self.sizes.changes -= old.len() as u64;
             }
         }
         self.storage
@@ -134,7 +134,7 @@ impl Persister for LocalStoragePersister {
         for (a, s) in changes {
             let key = make_key(a, s);
             if let Some(old) = self.changes.remove(&key) {
-                self.sizes.changes -= old.len();
+                self.sizes.changes -= old.len() as u64;
                 some_removal = true;
             }
         }
@@ -162,7 +162,7 @@ impl Persister for LocalStoragePersister {
     }
 
     fn set_document(&mut self, data: Vec<u8>) -> Result<(), Self::Error> {
-        self.sizes.document = data.len();
+        self.sizes.document = data.len() as u64;
         let data = serde_json::to_string(&data)?;
         self.storage
             .set_item(&self.document_key, &data)
@@ -176,10 +176,10 @@ impl Persister for LocalStoragePersister {
     }
 
     fn set_sync_state(&mut self, peer_id: Vec<u8>, sync_state: Vec<u8>) -> Result<(), Self::Error> {
-        self.sizes.sync_states += sync_state.len();
+        self.sizes.sync_states += sync_state.len() as u64;
         let peer_id = base64::encode(peer_id);
         if let Some(old) = self.sync_states.insert(peer_id, sync_state) {
-            self.sizes.sync_states -= old.len();
+            self.sizes.sync_states -= old.len() as u64;
         }
         self.storage
             .set_item(
@@ -194,7 +194,7 @@ impl Persister for LocalStoragePersister {
         for peer_id in peer_ids {
             let peer_id = base64::encode(peer_id);
             if let Some(old) = self.sync_states.remove(&peer_id) {
-                self.sizes.sync_states -= old.len();
+                self.sizes.sync_states -= old.len() as u64;
             }
         }
         self.storage

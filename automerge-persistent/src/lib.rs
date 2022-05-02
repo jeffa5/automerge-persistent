@@ -42,11 +42,11 @@ pub use persister::Persister;
 #[derive(Debug, Default, Clone)]
 pub struct StoredSizes {
     /// Total bytes stored for all changes.
-    pub changes: usize,
+    pub changes: u64,
     /// Total bytes stored in the document.
-    pub document: usize,
+    pub document: u64,
     /// Total bytes stored for all sync states.
-    pub sync_states: usize,
+    pub sync_states: u64,
 }
 
 /// Errors that persistent backends can return.
