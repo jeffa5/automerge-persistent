@@ -1,5 +1,5 @@
 {
-  description = "automergeable";
+  description = "automerge-persistent";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
@@ -16,17 +16,15 @@
             system = system;
           };
           rust = pkgs.rust-bin.stable.latest.default;
+          lib = pkgs.lib;
           cargoNix = pkgs.callPackage ./Cargo.nix { };
         in
         rec
         {
-          packages = {
-            automergeable = cargoNix.workspaceMembers.automergeable.build;
-            automergeable-traits = cargoNix.workspaceMembers.automergeable-traits.build;
-            automergeable-derive = cargoNix.workspaceMembers.automergeable-derive.build;
-          };
+          packages =
+            lib.attrsets.mapAttrs (name: value: value.build) cargoNix.workspaceMembers;
 
-          defaultPackage = packages.automergeable;
+          defaultPackage = packages.automerge-persistent;
 
           devShell = pkgs.mkShell {
             buildInputs = with pkgs;[
