@@ -17,7 +17,7 @@ fn small_backend_apply_local_change(c: &mut Criterion) {
                 let mut doc: PersistentAutomerge<automerge_persistent_sled::SledPersister> =
                     automerge_persistent::PersistentAutomerge::load(sled).unwrap();
                 doc.transact::<_, _, std::convert::Infallible>(|doc| {
-                    doc.set(ROOT, "a", "abcdef").unwrap();
+                    doc.put(ROOT, "a", "abcdef").unwrap();
                     Ok(())
                 })
                 .unwrap();
@@ -48,7 +48,7 @@ fn small_backend_apply_local_change_flush(c: &mut Criterion) {
                 let mut doc: PersistentAutomerge<automerge_persistent_sled::SledPersister> =
                     automerge_persistent::PersistentAutomerge::load(sled).unwrap();
                 doc.transact::<_, _, std::convert::Infallible>(|doc| {
-                    doc.set(ROOT, "a", "abcdef").unwrap();
+                    doc.put(ROOT, "a", "abcdef").unwrap();
                     Ok(())
                 })
                 .unwrap();
@@ -84,7 +84,7 @@ fn small_backend_apply_changes(c: &mut Criterion) {
                 let mut doc: PersistentAutomerge<automerge_persistent_sled::SledPersister> =
                     automerge_persistent::PersistentAutomerge::load(sled).unwrap();
                 doc.transact::<_, _, std::convert::Infallible>(|doc| {
-                    doc.set(ROOT, "a", "abcdef").unwrap();
+                    doc.put(ROOT, "a", "abcdef").unwrap();
                     Ok(())
                 })
                 .unwrap();
@@ -92,7 +92,7 @@ fn small_backend_apply_changes(c: &mut Criterion) {
                     .get_changes(&[])
                     .into_iter()
                     .cloned()
-                    .collect();
+                    .collect::<Vec<_>>();
                 (doc, changes)
             },
             |(mut persistent_doc, changes)| persistent_doc.document_mut().apply_changes(changes),
@@ -116,7 +116,7 @@ fn small_backend_compact(c: &mut Criterion) {
                 let mut doc: PersistentAutomerge<automerge_persistent_sled::SledPersister> =
                     automerge_persistent::PersistentAutomerge::load(sled).unwrap();
                 doc.transact::<_, _, std::convert::Infallible>(|doc| {
-                    doc.set(ROOT, "a", "abcdef").unwrap();
+                    doc.put(ROOT, "a", "abcdef").unwrap();
                     Ok(())
                 })
                 .unwrap();
