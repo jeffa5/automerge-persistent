@@ -14,7 +14,7 @@ Good backends to have would be:
 - [x] sled
 - [x] localstorage
 - [ ] indexeddb
-- [ ] filesystem
+- [x] filesystem
 - other suggestions welcome!
 
 ## Usage

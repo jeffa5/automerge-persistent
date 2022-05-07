@@ -3,4 +3,5 @@ members = [
   "automerge-persistent",
   "automerge-persistent-sled",
   "automerge-persistent-localstorage",
+  "automerge-persistent-fs",
 ]
