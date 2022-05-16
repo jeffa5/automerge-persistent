@@ -257,7 +257,8 @@ where
     ///
     /// This is typically used when a peer disconnects, we need to reset the sync state for them as
     /// they may come back up with different state.
-    pub fn reset_sync_state(&mut self, peer_id: &[u8]) {
+    pub fn reset_sync_state(&mut self, peer_id: &[u8]) -> Result<(), P::Error> {
         self.sync_states.remove(peer_id);
+        self.persister.remove_sync_states(&[peer_id])
     }
 }
