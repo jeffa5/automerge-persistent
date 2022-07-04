@@ -90,6 +90,7 @@ fn small_backend_apply_changes(c: &mut Criterion) {
                 .unwrap();
                 let changes = other_backend
                     .get_changes(&[])
+                    .unwrap()
                     .into_iter()
                     .cloned()
                     .collect::<Vec<_>>();

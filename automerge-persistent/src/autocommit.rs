@@ -93,7 +93,7 @@ where
     pub fn compact(&mut self, old_peer_ids: &[&[u8]]) -> Result<(), Error<P::Error>> {
         let saved_backend = self.document.save();
         self.saved_heads = self.document.get_heads();
-        let changes = self.document.get_changes(&[]);
+        let changes = self.document.get_changes(&[])?;
         self.persister
             .set_document(saved_backend)
             .map_err(Error::PersisterError)?;
@@ -194,7 +194,7 @@ where
             .document
             .receive_sync_message_with(sync_state, message, options)
             .map_err(Error::AutomergeError)?;
-        let changes = self.document.get_changes(&heads);
+        let changes = self.document.get_changes(&heads)?;
         self.persister
             .insert_changes(
                 changes
@@ -223,7 +223,7 @@ where
 
     /// Close any current transaction and write out the changes to disk.
     pub fn close_transaction(&mut self) -> Result<(), Error<P::Error>> {
-        for change in self.document.get_changes(&self.saved_heads) {
+        for change in self.document.get_changes(&self.saved_heads)? {
             self.persister
                 .insert_changes(vec![(
                     change.actor_id().clone(),
