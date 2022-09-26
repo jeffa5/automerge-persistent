@@ -28,7 +28,7 @@ pub struct FsPersisterCache {
 }
 
 impl FsPersisterCache {
-    fn flush_changes_sync(&mut self, changes_path: PathBuf) -> Result<usize, std::io::Error> {
+    fn flush_changes(&mut self, changes_path: PathBuf) -> Result<usize, std::io::Error> {
         let mut flushed = 0;
         for ((a, s), c) in self.changes.drain() {
             fs::write(make_changes_path(&changes_path, &a, s), &c)?;
@@ -37,7 +37,7 @@ impl FsPersisterCache {
         Ok(flushed)
     }
 
-    fn flush_document_sync(&mut self, doc_path: PathBuf) -> Result<usize, std::io::Error> {
+    fn flush_document(&mut self, doc_path: PathBuf) -> Result<usize, std::io::Error> {
         let mut flushed = 0;
         if let Some(data) = self.document.take() {
             fs::write(&doc_path, &data)?;
@@ -46,10 +46,7 @@ impl FsPersisterCache {
         Ok(flushed)
     }
 
-    fn flush_sync_states_sync(
-        &mut self,
-        sync_states_path: PathBuf,
-    ) -> Result<usize, std::io::Error> {
+    fn flush_sync_states(&mut self, sync_states_path: PathBuf) -> Result<usize, std::io::Error> {
         let mut flushed = 0;
         for (peer_id, sync_state) in self.sync_states.drain() {
             fs::write(make_peer_path(&sync_states_path, &peer_id), &sync_state)?;
@@ -59,7 +56,10 @@ impl FsPersisterCache {
     }
 
     #[cfg(feature = "async")]
-    async fn flush_changes(&mut self, changes_path: PathBuf) -> Result<usize, std::io::Error> {
+    async fn flush_changes_async(
+        &mut self,
+        changes_path: PathBuf,
+    ) -> Result<usize, std::io::Error> {
         let futs = futures::stream::FuturesUnordered::new();
         for ((a, s), c) in self.changes.drain() {
             let len = c.len();
@@ -72,7 +72,7 @@ impl FsPersisterCache {
     }
 
     #[cfg(feature = "async")]
-    async fn flush_document(&mut self, doc_path: PathBuf) -> Result<usize, std::io::Error> {
+    async fn flush_document_async(&mut self, doc_path: PathBuf) -> Result<usize, std::io::Error> {
         let mut flushed = 0;
         if let Some(data) = self.document.take() {
             tokio::fs::write(&doc_path, &data).await?;
@@ -82,7 +82,7 @@ impl FsPersisterCache {
     }
 
     #[cfg(feature = "async")]
-    async fn flush_sync_states(
+    async fn flush_sync_states_async(
         &mut self,
         sync_states_path: PathBuf,
     ) -> Result<usize, std::io::Error> {
@@ -99,29 +99,29 @@ impl FsPersisterCache {
     }
 
     #[cfg(feature = "async")]
-    pub async fn flush(
+    pub async fn flush_async(
         &mut self,
         doc_path: PathBuf,
         changes_path: PathBuf,
         sync_states_path: PathBuf,
     ) -> Result<usize, std::io::Error> {
         let mut flushed = 0;
-        flushed += self.flush_document(doc_path).await?;
-        flushed += self.flush_changes(changes_path).await?;
-        flushed += self.flush_sync_states(sync_states_path).await?;
+        flushed += self.flush_document_async(doc_path).await?;
+        flushed += self.flush_changes_async(changes_path).await?;
+        flushed += self.flush_sync_states_async(sync_states_path).await?;
         Ok(flushed)
     }
 
-    pub fn flush_sync(
+    pub fn flush(
         &mut self,
         doc_path: PathBuf,
         changes_path: PathBuf,
         sync_states_path: PathBuf,
     ) -> Result<usize, std::io::Error> {
         let mut flushed = 0;
-        flushed += self.flush_document_sync(doc_path)?;
-        flushed += self.flush_changes_sync(changes_path)?;
-        flushed += self.flush_sync_states_sync(sync_states_path)?;
+        flushed += self.flush_document(doc_path)?;
+        flushed += self.flush_changes(changes_path)?;
+        flushed += self.flush_sync_states(sync_states_path)?;
         Ok(flushed)
     }
 
@@ -193,7 +193,7 @@ impl FsPersister {
     }
 
     #[cfg(feature = "async")]
-    pub fn flush_cache(&mut self) -> impl Future<Output = Result<usize, std::io::Error>> {
+    pub fn flush_cache_async(&mut self) -> impl Future<Output = Result<usize, std::io::Error>> {
         let doc_path = self.doc_path.clone();
         let changes_path = self.changes_path.clone();
         let sync_states_path = self.sync_states_path.clone();
@@ -354,7 +354,7 @@ impl Persister for FsPersister {
     fn flush(&mut self) -> Result<usize, Self::Error> {
         self.cache
             .drain_clone()
-            .flush_sync(
+            .flush(
                 self.doc_path.clone(),
                 self.changes_path.clone(),
                 self.sync_states_path.clone(),
