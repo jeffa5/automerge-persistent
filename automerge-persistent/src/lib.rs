@@ -32,7 +32,7 @@ use std::{collections::HashMap, fmt::Debug};
 pub use autocommit::PersistentAutoCommit;
 use automerge::{
     sync,
-    transaction::{self, Transaction},
+    transaction::{CommitOptions, Failure, Success, Transaction},
     ApplyOptions, Automerge, AutomergeError, Change, OpObserver,
 };
 pub use mem::MemoryPersister;
@@ -60,6 +60,19 @@ pub enum Error<E> {
     PersisterError(E),
 }
 
+/// Errors that persistent backends can return after a transaction.
+#[derive(Debug, thiserror::Error)]
+pub enum TransactionError<PE, E> {
+    /// A persister error.
+    #[error(transparent)]
+    PersisterError(PE),
+    /// A transaction error
+    #[error(transparent)]
+    TransactionError(#[from] Failure<E>),
+}
+
+pub type TransactionResult<O, E, PE> = Result<Success<O>, TransactionError<PE, E>>;
+
 type PeerId = Vec<u8>;
 
 /// A wrapper for a persister and an automerge document.
@@ -82,21 +95,73 @@ where
         &mut self.document
     }
 
-    pub fn transact<F: FnOnce(&mut Transaction) -> Result<O, E>, O, E>(
-        &mut self,
-        f: F,
-    ) -> transaction::Result<O, E> {
+    pub fn transact<F, O, E>(&mut self, f: F) -> TransactionResult<O, E, P::Error>
+    where
+        F: FnOnce(&mut Transaction) -> Result<O, E>,
+    {
         let result = self.document.transact(f)?;
+        if let Err(e) = self.after_transaction() {
+            return Err(TransactionError::PersisterError(e));
+        }
+        Ok(result)
+    }
+
+    fn after_transaction(&mut self) -> Result<(), P::Error> {
         if let Some(change) = self.document.get_last_local_change() {
-            // TODO: remove this unwrap and return the error
-            self.persister
-                .insert_changes(vec![(
+            self.persister.insert_changes(vec![(
+                change.actor_id().clone(),
+                change.seq,
+                change.raw_bytes().to_vec(),
+            )])?;
+        }
+        Ok(())
+    }
+
+    pub fn transact_with<'a, F, O, E, C, Obs>(
+        &mut self,
+        c: C,
+        f: F,
+    ) -> TransactionResult<O, E, P::Error>
+    where
+        F: FnOnce(&mut Transaction) -> Result<O, E>,
+        C: FnOnce(&O) -> CommitOptions<'a, Obs>,
+        Obs: 'a + OpObserver,
+    {
+        let result = self.document.transact_with(c, f)?;
+        if let Err(e) = self.after_transaction() {
+            return Err(TransactionError::PersisterError(e));
+        }
+        Ok(result)
+    }
+
+    /// Apply changes to this document.
+    pub fn apply_changes(
+        &mut self,
+        changes: impl IntoIterator<Item = Change>,
+    ) -> Result<(), Error<P::Error>> {
+        self.apply_changes_with::<_, ()>(changes, ApplyOptions::default())
+    }
+
+    pub fn apply_changes_with<I: IntoIterator<Item = Change>, Obs: OpObserver>(
+        &mut self,
+        changes: I,
+        options: ApplyOptions<Obs>,
+    ) -> Result<(), Error<P::Error>> {
+        let mut to_persist = vec![];
+        let result = self.document.apply_changes_with(
+            changes.into_iter().map(|change| {
+                to_persist.push((
                     change.actor_id().clone(),
                     change.seq,
                     change.raw_bytes().to_vec(),
-                )])
-                .expect("Failed to save change from transaction");
-        }
+                ));
+                change
+            }),
+            options,
+        )?;
+        self.persister
+            .insert_changes(to_persist)
+            .map_err(Error::PersisterError)?;
         Ok(result)
     }
 
@@ -290,6 +355,11 @@ where
     /// Obtain a reference to the persister.
     pub fn persister(&self) -> &P {
         &self.persister
+    }
+
+    /// Obtain a mut reference to the persister.
+    pub fn persister_mut(&mut self) -> &mut P {
+        &mut self.persister
     }
 
     /// Reset the sync state for a peer.

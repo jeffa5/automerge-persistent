@@ -1,0 +1,16 @@
+[package]
+name = "automerge-persistent-fs"
+version = "0.1.0"
+authors = ["Andrew Jeffery <dev@jeffas.io>"]
+edition = "2018"
+
+[dependencies]
+automerge = "0.1.0"
+automerge-persistent = { path = "../automerge-persistent" }
+futures = { version = "0.3", optional = true }
+hex = "0.4.3"
+thiserror = "1.0.24"
+tokio = { version = "1", features = ["fs"], optional = true }
+
+[features]
+async = ["futures", "tokio"]
