@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 automerge = "0.1.0"
-automerge-persistent = { path = "../automerge-persistent" }
+automerge-persistent = { path = "../automerge-persistent", version = "0.1.0" }
 sled = "0.34.6"
 thiserror = "1.0.24"
 

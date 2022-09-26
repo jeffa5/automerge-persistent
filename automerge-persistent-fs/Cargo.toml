@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 automerge = "0.1.0"
-automerge-persistent = { path = "../automerge-persistent" }
+automerge-persistent = { path = "../automerge-persistent", version = "0.1.0" }
 futures = { version = "0.3", optional = true }
 hex = "0.4.3"
 thiserror = "1.0.24"
