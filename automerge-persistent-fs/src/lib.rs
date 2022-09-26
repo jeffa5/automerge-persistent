@@ -179,13 +179,16 @@ impl FsPersister {
             sizes: StoredSizes::default(),
         };
 
-        s.sizes.changes = s.get_changes()?.iter().map(Vec::len).sum();
-        s.sizes.document = s.get_document()?.unwrap_or_default().len();
+        s.sizes.changes = s.get_changes()?.iter().map(|v| v.len() as u64).sum();
+        s.sizes.document = s.get_document()?.unwrap_or_default().len() as u64;
         s.sizes.sync_states = s
             .get_peer_ids()?
             .iter()
-            .map(|id| s.get_sync_state(id).map(|o| o.unwrap_or_default().len()))
-            .collect::<Result<Vec<usize>, _>>()?
+            .map(|id| {
+                s.get_sync_state(id)
+                    .map(|o| o.unwrap_or_default().len() as u64)
+            })
+            .collect::<Result<Vec<u64>, _>>()?
             .iter()
             .sum();
 
@@ -198,7 +201,11 @@ impl FsPersister {
         let changes_path = self.changes_path.clone();
         let sync_states_path = self.sync_states_path.clone();
         let mut cache = self.cache.drain_clone();
-        async move { cache.flush(doc_path, changes_path, sync_states_path).await }
+        async move {
+            cache
+                .flush_async(doc_path, changes_path, sync_states_path)
+                .await
+        }
     }
 
     pub fn load<R: AsRef<Path>, P: AsRef<Path>>(
@@ -246,9 +253,9 @@ impl Persister for FsPersister {
 
     fn insert_changes(&mut self, changes: Vec<(ActorId, u64, Vec<u8>)>) -> Result<(), Self::Error> {
         for (a, s, c) in changes {
-            self.sizes.changes += c.len();
+            self.sizes.changes += c.len() as u64;
             if let Some(old) = self.cache.changes.insert((a, s), c) {
-                self.sizes.changes -= old.len();
+                self.sizes.changes -= old.len() as u64;
             }
         }
         Ok(())
@@ -258,7 +265,7 @@ impl Persister for FsPersister {
         for (a, s) in changes {
             if let Some(old) = self.cache.changes.remove(&(a.clone(), s)) {
                 // not flushed yet
-                self.sizes.changes -= old.len();
+                self.sizes.changes -= old.len() as u64;
                 continue;
             }
 
@@ -266,7 +273,7 @@ impl Persister for FsPersister {
             if let Ok(meta) = fs::metadata(&path) {
                 if meta.is_file() {
                     fs::remove_file(&path)?;
-                    self.sizes.changes -= meta.len() as usize;
+                    self.sizes.changes -= meta.len();
                 }
             }
         }
@@ -284,7 +291,7 @@ impl Persister for FsPersister {
     }
 
     fn set_document(&mut self, data: Vec<u8>) -> Result<(), Self::Error> {
-        self.sizes.document = data.len();
+        self.sizes.document = data.len() as u64;
         self.cache.document = Some(data);
         Ok(())
     }
@@ -301,9 +308,9 @@ impl Persister for FsPersister {
     }
 
     fn set_sync_state(&mut self, peer_id: Vec<u8>, sync_state: Vec<u8>) -> Result<(), Self::Error> {
-        self.sizes.sync_states += sync_state.len();
+        self.sizes.sync_states += sync_state.len() as u64;
         if let Some(old) = self.cache.sync_states.insert(peer_id, sync_state) {
-            self.sizes.sync_states -= old.len();
+            self.sizes.sync_states -= old.len() as u64;
         }
         Ok(())
     }
@@ -312,14 +319,14 @@ impl Persister for FsPersister {
         for peer_id in peer_ids {
             if let Some(old) = self.cache.sync_states.remove(*peer_id) {
                 // not flushed yet
-                self.sizes.sync_states -= old.len();
+                self.sizes.sync_states -= old.len() as u64;
                 continue;
             }
             let path = make_peer_path(&self.sync_states_path, peer_id);
             if let Ok(meta) = fs::metadata(&path) {
                 if meta.is_file() {
                     fs::remove_file(&path)?;
-                    self.sizes.sync_states -= meta.len() as usize;
+                    self.sizes.sync_states -= meta.len();
                 }
             }
         }
