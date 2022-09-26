@@ -12,7 +12,7 @@
       (system:
         let
           pkgs = import nixpkgs {
-            overlays = [ rust-overlay.overlay ];
+            overlays = [ rust-overlay.overlays.default ];
             system = system;
           };
           rust = pkgs.rust-bin.stable.latest.default;
@@ -26,7 +26,7 @@
 
           defaultPackage = packages.automerge-persistent;
 
-          devShell = pkgs.mkShell {
+          devShells.default = pkgs.mkShell {
             buildInputs = with pkgs;[
               (rust.override {
                 extensions = [ "rust-src" "rustfmt" ];
