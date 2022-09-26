@@ -5,5 +5,5 @@ authors = ["Andrew Jeffery <dev@jeffas.io>"]
 edition = "2018"
 
 [dependencies]
-automerge = { git = "https://github.com/automerge/automerge-rs", branch = "main" }
+automerge = "0.1.0"
 thiserror = "1.0.24"
