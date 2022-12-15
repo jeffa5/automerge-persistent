@@ -16,7 +16,7 @@
 //! # use automerge_persistent::MemoryPersister;
 //! # use automerge_persistent::PersistentBackend;
 //! # fn main() -> Result<(), automerge_persistent::Error<std::convert::Infallible,
-//! automerge_backend::AutomergeError>> {
+//! # automerge_backend::AutomergeError>> {
 //! let persister = MemoryPersister::default();
 //! let backend = PersistentBackend::<_, automerge::Backend>::load(persister)?;
 //! # Ok(())
