@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{Error, PeerId, Persister};
-use automerge::{sync, ApplyOptions, AutoCommit, Change, ChangeHash, OpObserver};
+use automerge::{sync, AutoCommit, Change, ChangeHash};
 
 /// A wrapper for a persister and an automerge document.
 #[derive(Debug)]
@@ -16,7 +16,7 @@ impl<P> PersistentAutoCommit<P>
 where
     P: Persister + 'static,
 {
-    pub fn document(&self) -> &AutoCommit {
+    pub const fn document(&self) -> &AutoCommit {
         &self.document
     }
 
@@ -50,16 +50,14 @@ where
         let mut backend = if let Some(document) = document {
             AutoCommit::load(&document).map_err(Error::AutomergeError)?
         } else {
-            AutoCommit::default()
+            AutoCommit::new()
         };
 
         let change_bytes = persister.get_changes().map_err(Error::PersisterError)?;
 
         let mut changes = Vec::new();
         for change_bytes in change_bytes {
-            changes.push(
-                Change::from_bytes(change_bytes).map_err(|e| Error::AutomergeError(e.into()))?,
-            )
+            changes.push(Change::from_bytes(change_bytes).map_err(Error::AutomergeLoadChangeError)?)
         }
 
         backend
@@ -98,7 +96,12 @@ where
             .set_document(saved_backend)
             .map_err(Error::PersisterError)?;
         self.persister
-            .remove_changes(changes.into_iter().map(|c| (c.actor_id(), c.seq)).collect())
+            .remove_changes(
+                changes
+                    .into_iter()
+                    .map(|c| (c.actor_id(), c.seq()))
+                    .collect(),
+            )
             .map_err(Error::PersisterError)?;
         self.persister
             .remove_sync_states(old_peer_ids)
@@ -133,8 +136,7 @@ where
                 .get_sync_state(&peer_id)
                 .map_err(Error::PersisterError)?
             {
-                let s = sync::State::decode(&sync_state)
-                    .map_err(|e| Error::AutomergeError(e.into()))?;
+                let s = sync::State::decode(&sync_state).map_err(Error::AutomergeDecodeError)?;
                 self.sync_states.insert(peer_id.clone(), s);
             }
         }
@@ -158,22 +160,6 @@ where
         peer_id: PeerId,
         message: sync::Message,
     ) -> Result<(), Error<P::Error>> {
-        self.receive_sync_message_with(peer_id, message, ApplyOptions::<()>::default())
-    }
-
-    /// Receive a sync message from a peer backend.
-    ///
-    /// Peer id is intentionally low level and up to the user as it can be a DNS name, IP address or
-    /// something else.
-    ///
-    /// This internally retrieves the previous sync state from storage and saves the new one
-    /// afterwards.
-    pub fn receive_sync_message_with<Obs: OpObserver>(
-        &mut self,
-        peer_id: PeerId,
-        message: sync::Message,
-        options: ApplyOptions<Obs>,
-    ) -> Result<(), Error<P::Error>> {
         self.close_transaction()?;
 
         if !self.sync_states.contains_key(&peer_id) {
@@ -182,24 +168,22 @@ where
                 .get_sync_state(&peer_id)
                 .map_err(Error::PersisterError)?
             {
-                let s = sync::State::decode(&sync_state)
-                    .map_err(|e| Error::AutomergeError(e.into()))?;
+                let s = sync::State::decode(&sync_state).map_err(Error::AutomergeDecodeError)?;
                 self.sync_states.insert(peer_id.clone(), s);
             }
         }
         let sync_state = self.sync_states.entry(peer_id.clone()).or_default();
 
         let heads = self.document.get_heads();
-        let patch = self
-            .document
-            .receive_sync_message_with(sync_state, message, options)
+        self.document
+            .receive_sync_message(sync_state, message)
             .map_err(Error::AutomergeError)?;
         let changes = self.document.get_changes(&heads)?;
         self.persister
             .insert_changes(
                 changes
                     .into_iter()
-                    .map(|c| (c.actor_id().clone(), c.seq, c.raw_bytes().to_vec()))
+                    .map(|c| (c.actor_id().clone(), c.seq(), c.raw_bytes().to_vec()))
                     .collect(),
             )
             .map_err(Error::PersisterError)?;
@@ -207,7 +191,7 @@ where
         self.persister
             .set_sync_state(peer_id, sync_state.encode())
             .map_err(Error::PersisterError)?;
-        Ok(patch)
+        Ok(())
     }
 
     /// Flush any data out to storage returning the number of bytes flushed.
@@ -227,7 +211,7 @@ where
             self.persister
                 .insert_changes(vec![(
                     change.actor_id().clone(),
-                    change.seq,
+                    change.seq(),
                     change.raw_bytes().to_vec(),
                 )])
                 .map_err(Error::PersisterError)?
@@ -249,7 +233,7 @@ where
     }
 
     /// Obtain a reference to the persister.
-    pub fn persister(&self) -> &P {
+    pub const fn persister(&self) -> &P {
         &self.persister
     }
 

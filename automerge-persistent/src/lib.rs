@@ -31,9 +31,9 @@ use std::{collections::HashMap, fmt::Debug};
 
 pub use autocommit::PersistentAutoCommit;
 use automerge::{
-    sync,
-    transaction::{CommitOptions, Failure, Success, Transaction},
-    ApplyOptions, Automerge, AutomergeError, Change, OpObserver,
+    sync::{self, DecodeStateError},
+    transaction::{CommitOptions, Failure, Observed, Success, Transaction, UnObserved},
+    Automerge, AutomergeError, Change, LoadChangeError, OpObserver,
 };
 pub use mem::MemoryPersister;
 pub use persister::Persister;
@@ -55,6 +55,10 @@ pub enum Error<E> {
     /// An automerge error.
     #[error(transparent)]
     AutomergeError(#[from] AutomergeError),
+    #[error(transparent)]
+    AutomergeDecodeError(#[from] DecodeStateError),
+    #[error(transparent)]
+    AutomergeLoadChangeError(#[from] LoadChangeError),
     /// A persister error.
     #[error(transparent)]
     PersisterError(E),
@@ -71,7 +75,7 @@ pub enum TransactionError<PE, E> {
     TransactionError(#[from] Failure<E>),
 }
 
-pub type TransactionResult<O, E, PE> = Result<Success<O>, TransactionError<PE, E>>;
+pub type TransactionResult<O, Obs, E, PE> = Result<Success<O, Obs>, TransactionError<PE, E>>;
 
 type PeerId = Vec<u8>;
 
@@ -87,7 +91,7 @@ impl<P> PersistentAutomerge<P>
 where
     P: Persister + 'static,
 {
-    pub fn document(&self) -> &Automerge {
+    pub const fn document(&self) -> &Automerge {
         &self.document
     }
 
@@ -95,9 +99,9 @@ where
         &mut self.document
     }
 
-    pub fn transact<F, O, E>(&mut self, f: F) -> TransactionResult<O, E, P::Error>
+    pub fn transact<F, O, E>(&mut self, f: F) -> TransactionResult<O, (), E, P::Error>
     where
-        F: FnOnce(&mut Transaction) -> Result<O, E>,
+        F: FnOnce(&mut Transaction<UnObserved>) -> Result<O, E>,
     {
         let result = self.document.transact(f)?;
         if let Err(e) = self.after_transaction() {
@@ -110,24 +114,24 @@ where
         if let Some(change) = self.document.get_last_local_change() {
             self.persister.insert_changes(vec![(
                 change.actor_id().clone(),
-                change.seq,
+                change.seq(),
                 change.raw_bytes().to_vec(),
             )])?;
         }
         Ok(())
     }
 
-    pub fn transact_with<'a, F, O, E, C, Obs>(
+    pub fn transact_with<F, O, E, C, Obs>(
         &mut self,
         c: C,
         f: F,
-    ) -> TransactionResult<O, E, P::Error>
+    ) -> TransactionResult<O, Obs, E, P::Error>
     where
-        F: FnOnce(&mut Transaction) -> Result<O, E>,
-        C: FnOnce(&O) -> CommitOptions<'a, Obs>,
-        Obs: 'a + OpObserver,
+        F: FnOnce(&mut Transaction<'_, Observed<Obs>>) -> Result<O, E>,
+        C: FnOnce(&O) -> CommitOptions,
+        Obs: OpObserver,
     {
-        let result = self.document.transact_with(c, f)?;
+        let result = self.document.transact_observed_with(c, f)?;
         if let Err(e) = self.after_transaction() {
             return Err(TransactionError::PersisterError(e));
         }
@@ -139,30 +143,30 @@ where
         &mut self,
         changes: impl IntoIterator<Item = Change>,
     ) -> Result<(), Error<P::Error>> {
-        self.apply_changes_with::<_, ()>(changes, ApplyOptions::default())
+        self.apply_changes_with::<_, ()>(changes, None)
     }
 
     pub fn apply_changes_with<I: IntoIterator<Item = Change>, Obs: OpObserver>(
         &mut self,
         changes: I,
-        options: ApplyOptions<Obs>,
+        op_observer: Option<&mut Obs>,
     ) -> Result<(), Error<P::Error>> {
         let mut to_persist = vec![];
-        let result = self.document.apply_changes_with(
+        self.document.apply_changes_with(
             changes.into_iter().map(|change| {
                 to_persist.push((
                     change.actor_id().clone(),
-                    change.seq,
+                    change.seq(),
                     change.raw_bytes().to_vec(),
                 ));
                 change
             }),
-            options,
+            op_observer,
         )?;
         self.persister
             .insert_changes(to_persist)
             .map_err(Error::PersisterError)?;
-        Ok(result)
+        Ok(())
     }
 
     /// Load the persisted changes (both individual changes and a document) from storage and
@@ -186,9 +190,7 @@ where
 
         let mut changes = Vec::new();
         for change_bytes in change_bytes {
-            changes.push(
-                Change::from_bytes(change_bytes).map_err(|e| Error::AutomergeError(e.into()))?,
-            )
+            changes.push(Change::from_bytes(change_bytes).map_err(Error::AutomergeLoadChangeError)?)
         }
 
         backend
@@ -223,7 +225,12 @@ where
             .set_document(saved_backend)
             .map_err(Error::PersisterError)?;
         self.persister
-            .remove_changes(changes.into_iter().map(|c| (c.actor_id(), c.seq)).collect())
+            .remove_changes(
+                changes
+                    .into_iter()
+                    .map(|c| (c.actor_id(), c.seq()))
+                    .collect(),
+            )
             .map_err(Error::PersisterError)?;
         self.persister
             .remove_sync_states(old_peer_ids)
@@ -256,8 +263,7 @@ where
                 .get_sync_state(&peer_id)
                 .map_err(Error::PersisterError)?
             {
-                let s = sync::State::decode(&sync_state)
-                    .map_err(|e| Error::AutomergeError(e.into()))?;
+                let s = sync::State::decode(&sync_state).map_err(Error::AutomergeDecodeError)?;
                 self.sync_states.insert(peer_id.clone(), s);
             }
         }
@@ -281,7 +287,7 @@ where
         peer_id: PeerId,
         message: sync::Message,
     ) -> Result<(), Error<P::Error>> {
-        self.receive_sync_message_with(peer_id, message, ApplyOptions::<()>::default())
+        self.receive_sync_message_with::<()>(peer_id, message, None)
     }
 
     /// Receive a sync message from a peer backend.
@@ -295,7 +301,7 @@ where
         &mut self,
         peer_id: PeerId,
         message: sync::Message,
-        options: ApplyOptions<Obs>,
+        op_observer: Option<&mut Obs>,
     ) -> Result<(), Error<P::Error>> {
         if !self.sync_states.contains_key(&peer_id) {
             if let Some(sync_state) = self
@@ -303,24 +309,22 @@ where
                 .get_sync_state(&peer_id)
                 .map_err(Error::PersisterError)?
             {
-                let s = sync::State::decode(&sync_state)
-                    .map_err(|e| Error::AutomergeError(e.into()))?;
+                let s = sync::State::decode(&sync_state).map_err(Error::AutomergeDecodeError)?;
                 self.sync_states.insert(peer_id.clone(), s);
             }
         }
         let sync_state = self.sync_states.entry(peer_id.clone()).or_default();
 
         let heads = self.document.get_heads();
-        let patch = self
-            .document
-            .receive_sync_message_with(sync_state, message, options)
+        self.document
+            .receive_sync_message_with(sync_state, message, op_observer)
             .map_err(Error::AutomergeError)?;
         let changes = self.document.get_changes(&heads)?;
         self.persister
             .insert_changes(
                 changes
                     .into_iter()
-                    .map(|c| (c.actor_id().clone(), c.seq, c.raw_bytes().to_vec()))
+                    .map(|c| (c.actor_id().clone(), c.seq(), c.raw_bytes().to_vec()))
                     .collect(),
             )
             .map_err(Error::PersisterError)?;
@@ -328,7 +332,7 @@ where
         self.persister
             .set_sync_state(peer_id, sync_state.encode())
             .map_err(Error::PersisterError)?;
-        Ok(patch)
+        Ok(())
     }
 
     /// Flush any data out to storage returning the number of bytes flushed.
@@ -353,7 +357,7 @@ where
     }
 
     /// Obtain a reference to the persister.
-    pub fn persister(&self) -> &P {
+    pub const fn persister(&self) -> &P {
         &self.persister
     }
 

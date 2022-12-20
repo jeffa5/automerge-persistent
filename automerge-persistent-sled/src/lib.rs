@@ -79,7 +79,6 @@ pub enum SledPersisterError {
 
 impl SledPersister {
     /// Construct a new persister.
-    #[must_use]
     pub fn new<S>(
         changes_tree: sled::Tree,
         document_tree: sled::Tree,
