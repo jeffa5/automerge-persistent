@@ -8,8 +8,7 @@
 //!
 //! ```rust,no_run
 //! # use automerge_persistent_localstorage::{LocalStoragePersister, LocalStoragePersisterError};
-//! # use automerge_persistent::PersistentBackend;
-//! # use automerge::Backend;
+//! # use automerge_persistent::PersistentAutomerge;
 //! # fn main() -> Result<(), LocalStoragePersisterError> {
 //! let storage = web_sys::window()
 //!     .unwrap()
@@ -18,7 +17,7 @@
 //!     .unwrap();
 //!
 //! let persister = LocalStoragePersister::new(storage, "document".to_owned(), "changes".to_owned(), "sync-states".to_owned())?;
-//! let backend = PersistentBackend::<_, Backend>::load(persister).unwrap();
+//! let doc = PersistentAutomerge::load(persister).unwrap();
 //! # Ok(())
 //! # }
 //! ```

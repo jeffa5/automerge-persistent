@@ -37,17 +37,17 @@ where
     }
 
     /// Load the persisted changes (both individual changes and a document) from storage and
-    /// rebuild the Backend.
+    /// rebuild the document.
     ///
     /// ```rust
     /// # use automerge_persistent::MemoryPersister;
-    /// # use automerge_persistent::PersistentBackend;
+    /// # use automerge_persistent::PersistentAutoCommit;
     /// let persister = MemoryPersister::default();
-    /// let backend = PersistentBackend::<_, automerge::Backend>::load(persister).unwrap();
+    /// let doc = PersistentAutoCommit::load(persister).unwrap();
     /// ```
     pub fn load(persister: P) -> Result<Self, Error<P::Error>> {
         let document = persister.get_document().map_err(Error::PersisterError)?;
-        let mut backend = if let Some(document) = document {
+        let mut doc = if let Some(document) = document {
             AutoCommit::load(&document).map_err(Error::AutomergeError)?
         } else {
             AutoCommit::new()
@@ -60,13 +60,13 @@ where
             changes.push(Change::from_bytes(change_bytes).map_err(Error::AutomergeLoadChangeError)?)
         }
 
-        backend
+        doc
             .apply_changes(changes)
             .map_err(Error::AutomergeError)?;
 
-        let saved_heads = backend.get_heads();
+        let saved_heads = doc.get_heads();
         Ok(Self {
-            document: backend,
+            document: doc,
             sync_states: HashMap::new(),
             persister,
             saved_heads,
@@ -75,7 +75,7 @@ where
 
     /// Compact the storage.
     ///
-    /// This first obtains the changes currently in the backend, saves the backend and persists the
+    /// This first obtains the changes currently in the document, saves the document and persists the
     /// saved document. We then can remove the previously obtained changes one by one.
     ///
     /// It also clears out the storage used up by old sync states for peers by removing those given
@@ -83,17 +83,17 @@ where
     ///
     /// ```rust
     /// # use automerge_persistent::MemoryPersister;
-    /// # use automerge_persistent::PersistentBackend;
+    /// # use automerge_persistent::PersistentAutoCommit;
     /// # let persister = MemoryPersister::default();
-    /// # let mut backend = PersistentBackend::<_, automerge::Backend>::load(persister).unwrap();
-    /// backend.compact(&[]).unwrap();
+    /// # let mut doc = PersistentAutoCommit::load(persister).unwrap();
+    /// doc.compact(&[]).unwrap();
     /// ```
     pub fn compact(&mut self, old_peer_ids: &[&[u8]]) -> Result<(), Error<P::Error>> {
-        let saved_backend = self.document.save();
+        let saved_document = self.document.save();
         self.saved_heads = self.document.get_heads();
         let changes = self.document.get_changes(&[])?;
         self.persister
-            .set_document(saved_backend)
+            .set_document(saved_document)
             .map_err(Error::PersisterError)?;
         self.persister
             .remove_changes(
@@ -109,7 +109,7 @@ where
         Ok(())
     }
 
-    /// Generate a sync message to be sent to a peer backend.
+    /// Generate a sync message to be sent to a peer document.
     ///
     /// Peer id is intentionally low level and up to the user as it can be a DNS name, IP address or
     /// something else.
@@ -119,10 +119,10 @@ where
     ///
     /// ```rust
     /// # use automerge_persistent::MemoryPersister;
-    /// # use automerge_persistent::PersistentBackend;
+    /// # use automerge_persistent::PersistentAutoCommit;
     /// # let persister = MemoryPersister::default();
-    /// # let mut backend = PersistentBackend::<_, automerge::Backend>::load(persister).unwrap();
-    /// let message = backend.generate_sync_message(vec![]).unwrap();
+    /// # let mut doc = PersistentAutoCommit::load(persister).unwrap();
+    /// let message = doc.generate_sync_message(vec![]).unwrap();
     /// ```
     pub fn generate_sync_message(
         &mut self,
@@ -148,7 +148,7 @@ where
         Ok(message)
     }
 
-    /// Receive a sync message from a peer backend.
+    /// Receive a sync message from a peer document.
     ///
     /// Peer id is intentionally low level and up to the user as it can be a DNS name, IP address or
     /// something else.
