@@ -27,9 +27,10 @@ use std::{collections::HashMap, fmt::Debug};
 
 pub use autocommit::PersistentAutoCommit;
 use automerge::{
+    op_observer::BranchableObserver,
     sync::{self, DecodeStateError, SyncDoc},
     transaction::{CommitOptions, Failure, Observed, Success, Transaction, UnObserved},
-    Automerge, AutomergeError, Change, LoadChangeError, OpObserver, op_observer::BranchableObserver,
+    Automerge, AutomergeError, Change, LoadChangeError, OpObserver,
 };
 pub use mem::MemoryPersister;
 pub use persister::Persister;
@@ -189,9 +190,7 @@ where
             changes.push(Change::from_bytes(change_bytes).map_err(Error::AutomergeLoadChangeError)?)
         }
 
-        doc
-            .apply_changes(changes)
-            .map_err(Error::AutomergeError)?;
+        doc.apply_changes(changes).map_err(Error::AutomergeError)?;
         Ok(Self {
             document: doc,
             sync_states: HashMap::new(),
