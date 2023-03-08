@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::{Error, PeerId, Persister};
 use automerge::{
     sync::{self, SyncDoc},
-    AutoCommit, Change, ChangeHash,
+    AutoCommit, Change, ChangeHash, OpObserver,
 };
 
 /// A wrapper for a persister and an automerge document.
@@ -161,6 +161,22 @@ where
         peer_id: PeerId,
         message: sync::Message,
     ) -> Result<(), Error<P::Error>> {
+        self.receive_sync_message_with(peer_id, message, &mut ())
+    }
+
+    /// Receive a sync message from a peer document.
+    ///
+    /// Peer id is intentionally low level and up to the user as it can be a DNS name, IP address or
+    /// something else.
+    ///
+    /// This internally retrieves the previous sync state from storage and saves the new one
+    /// afterwards.
+    pub fn receive_sync_message_with<Obs: OpObserver>(
+        &mut self,
+        peer_id: PeerId,
+        message: sync::Message,
+        op_observer: &mut Obs,
+    ) -> Result<(), Error<P::Error>> {
         self.close_transaction()?;
 
         if !self.sync_states.contains_key(&peer_id) {
@@ -178,7 +194,7 @@ where
         let heads = self.document.get_heads();
         self.document
             .sync()
-            .receive_sync_message(sync_state, message)
+            .receive_sync_message_with(sync_state, message, op_observer)
             .map_err(Error::AutomergeError)?;
         let changes = self.document.get_changes(&heads)?;
         self.persister
