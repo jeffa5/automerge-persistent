@@ -27,9 +27,9 @@ use std::{collections::HashMap, fmt::Debug};
 
 pub use autocommit::PersistentAutoCommit;
 use automerge::{
-    sync::{self, DecodeStateError},
+    sync::{self, DecodeStateError, SyncDoc},
     transaction::{CommitOptions, Failure, Observed, Success, Transaction, UnObserved},
-    Automerge, AutomergeError, Change, LoadChangeError, OpObserver,
+    Automerge, AutomergeError, Change, LoadChangeError, OpObserver, op_observer::BranchableObserver,
 };
 pub use mem::MemoryPersister;
 pub use persister::Persister;
@@ -125,7 +125,7 @@ where
     where
         F: FnOnce(&mut Transaction<'_, Observed<Obs>>) -> Result<O, E>,
         C: FnOnce(&O) -> CommitOptions,
-        Obs: OpObserver,
+        Obs: OpObserver + BranchableObserver + Default,
     {
         let result = self.document.transact_observed_with(c, f)?;
         if let Err(e) = self.after_transaction() {
@@ -283,7 +283,7 @@ where
         peer_id: PeerId,
         message: sync::Message,
     ) -> Result<(), Error<P::Error>> {
-        self.receive_sync_message_with::<()>(peer_id, message, None)
+        self.receive_sync_message_with(peer_id, message, &mut ())
     }
 
     /// Receive a sync message from a peer document.
@@ -297,7 +297,7 @@ where
         &mut self,
         peer_id: PeerId,
         message: sync::Message,
-        op_observer: Option<&mut Obs>,
+        op_observer: &mut Obs,
     ) -> Result<(), Error<P::Error>> {
         if !self.sync_states.contains_key(&peer_id) {
             if let Some(sync_state) = self

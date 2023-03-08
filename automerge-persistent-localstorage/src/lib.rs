@@ -26,6 +26,7 @@ use std::collections::HashMap;
 
 use automerge::ActorId;
 use automerge_persistent::{Persister, StoredSizes};
+use base64::Engine;
 
 /// Persist changes and documents in to `LocalStorage`.
 ///
@@ -170,13 +171,13 @@ impl Persister for LocalStoragePersister {
     }
 
     fn get_sync_state(&self, peer_id: &[u8]) -> Result<Option<Vec<u8>>, Self::Error> {
-        let peer_id = base64::encode(peer_id);
+        let peer_id = base64::engine::general_purpose::STANDARD.encode(peer_id);
         Ok(self.sync_states.get(&peer_id).cloned())
     }
 
     fn set_sync_state(&mut self, peer_id: Vec<u8>, sync_state: Vec<u8>) -> Result<(), Self::Error> {
         self.sizes.sync_states += sync_state.len() as u64;
-        let peer_id = base64::encode(peer_id);
+        let peer_id = base64::engine::general_purpose::STANDARD.encode(peer_id);
         if let Some(old) = self.sync_states.insert(peer_id, sync_state) {
             self.sizes.sync_states -= old.len() as u64;
         }
@@ -191,7 +192,7 @@ impl Persister for LocalStoragePersister {
 
     fn remove_sync_states(&mut self, peer_ids: &[&[u8]]) -> Result<(), Self::Error> {
         for peer_id in peer_ids {
-            let peer_id = base64::encode(peer_id);
+            let peer_id = base64::engine::general_purpose::STANDARD.encode(peer_id);
             if let Some(old) = self.sync_states.remove(&peer_id) {
                 self.sizes.sync_states -= old.len() as u64;
             }
@@ -209,7 +210,11 @@ impl Persister for LocalStoragePersister {
         Ok(self
             .sync_states
             .keys()
-            .map(|key| base64::decode(key).expect("Failed to base64 decode they peer_id"))
+            .map(|key| {
+                base64::engine::general_purpose::STANDARD
+                    .decode(key)
+                    .expect("Failed to base64 decode they peer_id")
+            })
             .collect())
     }
 

@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 
 use crate::{Error, PeerId, Persister};
-use automerge::{sync, AutoCommit, Change, ChangeHash};
+use automerge::{
+    sync::{self, SyncDoc},
+    AutoCommit, Change, ChangeHash,
+};
 
 /// A wrapper for a persister and an automerge document.
 #[derive(Debug)]
@@ -60,9 +63,7 @@ where
             changes.push(Change::from_bytes(change_bytes).map_err(Error::AutomergeLoadChangeError)?)
         }
 
-        doc
-            .apply_changes(changes)
-            .map_err(Error::AutomergeError)?;
+        doc.apply_changes(changes).map_err(Error::AutomergeError)?;
 
         let saved_heads = doc.get_heads();
         Ok(Self {
@@ -141,7 +142,7 @@ where
             }
         }
         let sync_state = self.sync_states.entry(peer_id.clone()).or_default();
-        let message = self.document.generate_sync_message(sync_state);
+        let message = self.document.sync().generate_sync_message(sync_state);
         self.persister
             .set_sync_state(peer_id, sync_state.encode())
             .map_err(Error::PersisterError)?;
@@ -176,6 +177,7 @@ where
 
         let heads = self.document.get_heads();
         self.document
+            .sync()
             .receive_sync_message(sync_state, message)
             .map_err(Error::AutomergeError)?;
         let changes = self.document.get_changes(&heads)?;

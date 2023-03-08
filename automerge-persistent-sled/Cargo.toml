@@ -1,6 +1,6 @@
 [package]
 name = "automerge-persistent-sled"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Andrew Jeffery <dev@jeffas.io>"]
 edition = "2018"
 license = "MIT"
@@ -8,13 +8,13 @@ repository = "https://github.com/jeffa5/automerge-persistent"
 description = "A sled adapter for persisting Automerge documents"
 
 [dependencies]
-automerge = "0.2"
-automerge-persistent = { path = "../automerge-persistent", version = "0.2.0" }
+automerge = "0.3"
+automerge-persistent = { path = "../automerge-persistent", version = "0.3.0" }
 sled = "0.34.6"
 thiserror = "1.0.24"
 
 [dev-dependencies]
-criterion = "0.3.4"
+criterion = "0.4.0"
 
 [[bench]]
 name = "save"
