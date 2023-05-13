@@ -1,6 +1,6 @@
 [package]
 name = "automerge-persistent-localstorage"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["Andrew Jeffery <dev@jeffas.io>"]
 edition = "2018"
 license = "MIT"
@@ -9,7 +9,7 @@ description = "A web-based localstorage adapter for persisting Automerge documen
 
 [dependencies]
 automerge = "0.4"
-automerge-persistent = { path = "../automerge-persistent", version = "0.3.0" }
+automerge-persistent = { path = "../automerge-persistent", version = "0.4.0" }
 web-sys = { version = "0.3.50", features = ["Storage"] }
 serde = "1.0.125"
 serde_json = "1.0.64"
