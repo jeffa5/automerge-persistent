@@ -8,5 +8,5 @@ repository = "https://github.com/jeffa5/automerge-persistent"
 description = "The core library for managing persistent state of Automerge documents"
 
 [dependencies]
-automerge = "0.3"
+automerge = "0.4"
 thiserror = "1.0.24"

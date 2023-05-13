@@ -8,7 +8,7 @@ repository = "https://github.com/jeffa5/automerge-persistent"
 description = "A web-based localstorage adapter for persisting Automerge documents"
 
 [dependencies]
-automerge = "0.3"
+automerge = "0.4"
 automerge-persistent = { path = "../automerge-persistent", version = "0.3.0" }
 web-sys = { version = "0.3.50", features = ["Storage"] }
 serde = "1.0.125"
