@@ -8,7 +8,7 @@ repository = "https://github.com/jeffa5/automerge-persistent"
 description = "A file system adapter for persisting Automerge documents"
 
 [dependencies]
-automerge = "0.4"
+automerge = { git = "https://github.com/jeffa5/automerge", branch = "cmp-heads" }
 automerge-persistent = { path = "../automerge-persistent", version = "0.4.0" }
 futures = { version = "0.3", optional = true }
 hex = "0.4.3"

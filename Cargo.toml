@@ -5,6 +5,3 @@ members = [
   "automerge-persistent-localstorage",
   "automerge-persistent-fs",
 ]
-
-[patch.crates-io]
-automerge = { git = "https://github.com/jeffa5/automerge", branch = "cmp-heads" }
