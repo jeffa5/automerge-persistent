@@ -39,6 +39,37 @@ where
         Ok(result)
     }
 
+    /// Apply changes to this document.
+    pub fn apply_changes(
+        &mut self,
+        changes: impl IntoIterator<Item = Change>,
+    ) -> Result<(), Error<P::Error>> {
+        self.apply_changes_with::<_, ()>(changes, None)
+    }
+
+    pub fn apply_changes_with<I: IntoIterator<Item = Change>, Obs: OpObserver>(
+        &mut self,
+        changes: I,
+        op_observer: Option<&mut Obs>,
+    ) -> Result<(), Error<P::Error>> {
+        let mut to_persist = vec![];
+        self.document.apply_changes_with(
+            changes.into_iter().map(|change| {
+                to_persist.push((
+                    change.actor_id().clone(),
+                    change.seq(),
+                    change.raw_bytes().to_vec(),
+                ));
+                change
+            }),
+            op_observer,
+        )?;
+        self.persister
+            .insert_changes(to_persist)
+            .map_err(Error::PersisterError)?;
+        Ok(())
+    }
+
     /// Load the persisted changes (both individual changes and a document) from storage and
     /// rebuild the document.
     ///
