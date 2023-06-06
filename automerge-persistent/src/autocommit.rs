@@ -159,7 +159,7 @@ where
     pub fn generate_sync_message(
         &mut self,
         peer_id: PeerId,
-    ) -> Result<Option<sync::Message>, Error<P::Error>> {
+    ) -> Result<Option<sync::Message<'_>>, Error<P::Error>> {
         self.close_transaction()?;
 
         if !self.sync_states.contains_key(&peer_id) {
@@ -173,7 +173,11 @@ where
             }
         }
         let sync_state = self.sync_states.entry(peer_id.clone()).or_default();
-        let message = self.document.sync().generate_sync_message(sync_state);
+        let message = self
+            .document
+            .sync()
+            .generate_sync_message(sync_state)
+            .map(|m| m.into_owned());
         self.persister
             .set_sync_state(peer_id, sync_state.encode())
             .map_err(Error::PersisterError)?;
