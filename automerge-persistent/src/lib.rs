@@ -246,11 +246,12 @@ where
     /// # use automerge_persistent::PersistentAutomerge;
     /// # let persister = MemoryPersister::default();
     /// # let mut document = PersistentAutomerge::load(persister).unwrap();
-    /// let message = document.generate_sync_message(vec![]).unwrap();
+    /// let message = document.generate_sync_message(vec![], 100).unwrap();
     /// ```
     pub fn generate_sync_message(
         &mut self,
         peer_id: PeerId,
+        max_size: usize,
     ) -> Result<Option<sync::Message>, Error<P::Error>> {
         if !self.sync_states.contains_key(&peer_id) {
             if let Some(sync_state) = self
@@ -263,7 +264,7 @@ where
             }
         }
         let sync_state = self.sync_states.entry(peer_id.clone()).or_default();
-        let message = self.document.generate_sync_message(sync_state);
+        let message = self.document.generate_sync_message(sync_state, max_size);
         self.persister
             .set_sync_state(peer_id, sync_state.encode())
             .map_err(Error::PersisterError)?;

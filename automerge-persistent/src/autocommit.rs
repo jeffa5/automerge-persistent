@@ -154,11 +154,12 @@ where
     /// # use automerge_persistent::PersistentAutoCommit;
     /// # let persister = MemoryPersister::default();
     /// # let mut doc = PersistentAutoCommit::load(persister).unwrap();
-    /// let message = doc.generate_sync_message(vec![]).unwrap();
+    /// let message = doc.generate_sync_message(vec![], 100).unwrap();
     /// ```
     pub fn generate_sync_message(
         &mut self,
         peer_id: PeerId,
+        max_size: usize,
     ) -> Result<Option<sync::Message<'_>>, Error<P::Error>> {
         self.close_transaction()?;
 
@@ -176,7 +177,7 @@ where
         let message = self
             .document
             .sync()
-            .generate_sync_message(sync_state)
+            .generate_sync_message(sync_state, max_size)
             .map(|m| m.into_owned());
         self.persister
             .set_sync_state(peer_id, sync_state.encode())
